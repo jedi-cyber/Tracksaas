@@ -52,6 +52,29 @@ async function activate(req, res, next) {
   }
 }
 
+async function reserve(req, res, next) {
+  try {
+    const data = await licensesService.reserveLicense(req.params.id, req.body, req.user.id, req.ip);
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function releaseReservation(req, res, next) {
+  try {
+    const data = await licensesService.releaseReservation(
+      req.params.id,
+      req.body,
+      req.user.id,
+      req.ip
+    );
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   list,
   get,
@@ -59,4 +82,6 @@ module.exports = {
   update,
   remove,
   activate,
+  reserve,
+  releaseReservation,
 };

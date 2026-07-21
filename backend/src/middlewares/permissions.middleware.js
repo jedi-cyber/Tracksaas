@@ -47,8 +47,8 @@ const RESOURCE_PERMISSIONS = {
     viewer: ["read"],
   },
   licenses: {
-    administrator: ["read", "create", "update", "delete", "activate"],
-    license_user: ["read", "create", "update", "activate"],
+    administrator: ["read", "create", "update", "delete", "activate", "reserve"],
+    license_user: ["read", "create", "update", "activate", "reserve"],
     viewer: ["read"],
   },
   dashboard: {
@@ -65,6 +65,16 @@ function actionFromRequest(req, resourceName) {
     req.path.split("/").filter(Boolean).includes("activate")
   ) {
     return "activate";
+  }
+
+  if (
+    resourceName === "licenses" &&
+    req.method === "POST" &&
+    ["reserve", "release-reservation"].some((action) =>
+      req.path.split("/").filter(Boolean).includes(action)
+    )
+  ) {
+    return "reserve";
   }
 
   if (READ_METHODS.has(req.method)) {
