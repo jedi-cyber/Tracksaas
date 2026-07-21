@@ -184,6 +184,32 @@ async function createLicense(payload, userId, ipAddress) {
   try {
     await client.query("BEGIN");
 
+    const batchCapacity = await client.query(
+      "SELECT id, quantity FROM license_batches WHERE id = $1 FOR UPDATE",
+      [payload.batch_id]
+    );
+
+    const batch = batchCapacity.rows[0];
+
+    if (!batch) {
+      throw apiError("Lote no encontrado", 404);
+    }
+
+    const usedCapacity = await client.query(
+      `
+        SELECT COUNT(*)::INT AS used_quantity
+        FROM license_units
+        WHERE batch_id = $1
+          AND active = TRUE
+          AND status <> 'cancelled'
+      `,
+      [payload.batch_id]
+    );
+
+    if (usedCapacity.rows[0].used_quantity >= batch.quantity) {
+      throw apiError("El lote ya alcanzó la cantidad máxima de licencias", 409);
+    }
+
     const { rows } = await client.query(
       `
         INSERT INTO license_units (
