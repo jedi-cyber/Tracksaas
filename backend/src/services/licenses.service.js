@@ -63,6 +63,10 @@ function publicLicense(row) {
   return safeRow;
 }
 
+function publicActivation(row) {
+  return row;
+}
+
 async function listLicenses(query) {
   const { page, limit, offset } = getPagination(query);
   const includeInactive = query.includeInactive === "true";
@@ -243,6 +247,11 @@ async function createLicense(payload, userId, ipAddress) {
 
 async function updateLicense(id, payload, userId, ipAddress) {
   validateLicense(payload, true);
+
+  if (payload.status === "activated") {
+    throw apiError("Use el endpoint de activación para activar una licencia", 409);
+  }
+
   const codeFields = {};
 
   if (payload.license_code !== undefined) {
@@ -342,10 +351,114 @@ async function deactivateLicense(id, userId, ipAddress) {
   return updateLicense(id, { active: false, status: "cancelled" }, userId, ipAddress);
 }
 
+async function activateLicense(id, payload, userId, ipAddress) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const oldResult = await client.query("SELECT * FROM license_units WHERE id = $1 FOR UPDATE", [id]);
+    const oldLicense = oldResult.rows[0];
+
+    if (!oldLicense) {
+      throw apiError("Licencia no encontrada", 404);
+    }
+
+    if (!oldLicense.active) {
+      throw apiError("No se puede activar una licencia inactiva", 409);
+    }
+
+    if (!["available", "reserved"].includes(oldLicense.status)) {
+      throw apiError("Solo se pueden activar licencias disponibles o reservadas", 409);
+    }
+
+    const existingActivation = await client.query(
+      "SELECT id FROM license_activations WHERE license_unit_id = $1 LIMIT 1",
+      [id]
+    );
+
+    if (existingActivation.rows[0]) {
+      throw apiError("La licencia ya fue activada", 409);
+    }
+
+    const activationResult = await client.query(
+      `
+        INSERT INTO license_activations (
+          license_unit_id,
+          customer_id,
+          activated_by,
+          device_reference,
+          support_reference,
+          notes
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
+      `,
+      [
+        id,
+        payload.customer_id || null,
+        userId,
+        payload.device_reference || null,
+        payload.support_reference || null,
+        payload.notes || null,
+      ]
+    );
+
+    const licenseResult = await client.query(
+      `
+        UPDATE license_units
+        SET
+          status = 'activated',
+          activation_date = $2,
+          responsible_user_id = COALESCE($3, responsible_user_id),
+          write_uid = $4
+        WHERE id = $1
+        RETURNING *
+      `,
+      [
+        id,
+        activationResult.rows[0].activation_date,
+        payload.responsible_user_id || null,
+        userId,
+      ]
+    );
+
+    const safeOldLicense = publicLicense(oldLicense);
+    const safeLicense = publicLicense(licenseResult.rows[0]);
+    const activation = publicActivation(activationResult.rows[0]);
+
+    await recordAudit(client, {
+      userId,
+      entityName: "license_units",
+      entityId: id,
+      action: "activate",
+      oldValues: safeOldLicense,
+      newValues: {
+        license: safeLicense,
+        activation,
+      },
+      ipAddress,
+    });
+
+    await client.query("COMMIT");
+
+    return {
+      license: safeLicense,
+      activation,
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw mapDbError(error);
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   listLicenses,
   getLicense,
   createLicense,
   updateLicense,
   deactivateLicense,
+  activateLicense,
 };

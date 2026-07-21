@@ -4,6 +4,7 @@ const CONSTRAINT_MESSAGES = {
   uq_product_variant_code: "Ya existe una variante con ese código",
   license_batches_batch_number_key: "Ya existe un lote con ese número",
   license_units_license_code_hash_key: "Ya existe una licencia con ese código",
+  license_activations_license_unit_id_key: "La licencia ya fue activada",
 };
 
 function mapDbError(error) {
