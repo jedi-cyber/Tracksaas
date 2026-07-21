@@ -35,6 +35,14 @@ Health:   http://localhost:3000/api/health
 DB check: http://localhost:3000/api/health/db
 ```
 
+Para usuarios finales, la URL de trabajo es:
+
+```text
+http://localhost:5173
+```
+
+El frontend consume la API mediante `/api`. En Docker, Vite proxyea esas solicitudes hacia `http://backend:3000`, por lo que el usuario no necesita navegar manualmente al backend.
+
 ## Archivos Usados
 
 ```text
@@ -204,7 +212,8 @@ docker compose up -d frontend
 
 - `depends_on` espera a que PostgreSQL pase el `healthcheck` antes de iniciar backend.
 - El backend usa `DB_HOST=postgres`, que es el nombre del servicio dentro de la red Docker.
-- El frontend usa `VITE_API_URL=http://localhost:3000/api`.
+- El frontend usa `VITE_API_URL=/api`.
+- Vite usa `VITE_API_PROXY_TARGET=http://backend:3000` para reenviar las llamadas al backend dentro de Docker.
 - El frontend corre en modo desarrollo con Vite y `--host 0.0.0.0`.
 - PostgreSQL conserva datos en el volumen `postgres_data`.
 

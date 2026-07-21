@@ -403,11 +403,11 @@ Incluido:
 - Tests backend.
 - Documentación API.
 - Docker Compose general con PostgreSQL, backend y frontend.
+- Frontend React integrado con login, dashboard y módulos operativos.
 - Seguridad adicional: rate limit, CORS por entorno, límite JSON y validación de secretos.
 
 Pendiente o siguiente etapa:
 
-- Integración frontend React.
 - Swagger/OpenAPI formal.
 - Scheduler automático para expiración, si se requiere.
 
