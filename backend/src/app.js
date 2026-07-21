@@ -4,6 +4,7 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 
 const activationsRoutes = require("./routes/activations.routes");
+const auditLogsRoutes = require("./routes/auditLogs.routes");
 const authRoutes = require("./routes/auth.routes");
 const batchesRoutes = require("./routes/batches.routes");
 const customersRoutes = require("./routes/customers.routes");
@@ -28,6 +29,7 @@ app.use(morgan("dev"));
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/activations", requireAuth, activationsRoutes);
+app.use("/api/audit-logs", requireAuth, auditLogsRoutes);
 app.use("/api/roles", requireAuth, rolesRoutes);
 app.use("/api/users", requireAuth, usersRoutes);
 app.use("/api/providers", requireAuth, providersRoutes);
