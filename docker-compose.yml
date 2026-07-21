@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tracksaas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tracksaas_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tracksaas_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tracksaas-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: tracksaas_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: dev_jwt_secret_replace_for_production_64_chars_minimum
+      JWT_EXPIRES_IN: 8h
+      LICENSE_ENCRYPTION_KEY: dev_license_secret_replace_for_production_64_chars_minimum
+      CORS_ORIGIN: http://localhost:5173
+      JSON_BODY_LIMIT: 100kb
+      LOGIN_RATE_LIMIT_WINDOW_MS: 900000
+      LOGIN_RATE_LIMIT_MAX: 5
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tracksaas-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:3000/api
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

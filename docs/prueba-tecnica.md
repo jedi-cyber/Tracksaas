@@ -402,13 +402,13 @@ Incluido:
 - Activación, reserva, cancelación y expiración.
 - Tests backend.
 - Documentación API.
+- Docker Compose general con PostgreSQL, backend y frontend.
+- Seguridad adicional: rate limit, CORS por entorno, límite JSON y validación de secretos.
 
 Pendiente o siguiente etapa:
 
 - Integración frontend React.
-- Docker completo y validado.
 - Swagger/OpenAPI formal.
-- Rate limit en login.
 - Scheduler automático para expiración, si se requiere.
 
 ## Notas de Diseño
