@@ -5,10 +5,14 @@ const morgan = require("morgan");
 
 const authRoutes = require("./routes/auth.routes");
 const batchesRoutes = require("./routes/batches.routes");
+const customersRoutes = require("./routes/customers.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
 const healthRoutes = require("./routes/health.routes");
 const licensesRoutes = require("./routes/licenses.routes");
 const productsRoutes = require("./routes/products.routes");
+const providersRoutes = require("./routes/providers.routes");
+const rolesRoutes = require("./routes/roles.routes");
+const usersRoutes = require("./routes/users.routes");
 const variantsRoutes = require("./routes/variants.routes");
 const { requireAuth } = require("./middlewares/auth.middleware");
 const mapDbError = require("./utils/dbErrors");
@@ -22,6 +26,10 @@ app.use(morgan("dev"));
 
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/roles", requireAuth, rolesRoutes);
+app.use("/api/users", requireAuth, usersRoutes);
+app.use("/api/providers", requireAuth, providersRoutes);
+app.use("/api/customers", requireAuth, customersRoutes);
 app.use("/api/products", requireAuth, productsRoutes);
 app.use("/api/variants", requireAuth, variantsRoutes);
 app.use("/api/batches", requireAuth, batchesRoutes);

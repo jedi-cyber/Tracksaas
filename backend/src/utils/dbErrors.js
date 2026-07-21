@@ -1,4 +1,7 @@
 const CONSTRAINT_MESSAGES = {
+  roles_name_key: "Ya existe un rol con ese nombre",
+  users_email_key: "Ya existe un usuario con ese correo",
+  providers_name_key: "Ya existe un proveedor con ese nombre",
   products_name_key: "Ya existe un producto con ese nombre",
   uq_product_variant_name: "Ya existe una variante con ese nombre para el producto",
   uq_product_variant_code: "Ya existe una variante con ese código",
