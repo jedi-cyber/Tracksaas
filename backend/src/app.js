@@ -16,6 +16,7 @@ const providersRoutes = require("./routes/providers.routes");
 const rolesRoutes = require("./routes/roles.routes");
 const usersRoutes = require("./routes/users.routes");
 const variantsRoutes = require("./routes/variants.routes");
+const { getCorsOptions, getJsonLimit, isProduction } = require("./config/security");
 const { requireAuth } = require("./middlewares/auth.middleware");
 const { requirePermission } = require("./middlewares/permissions.middleware");
 const mapDbError = require("./utils/dbErrors");
@@ -23,8 +24,8 @@ const mapDbError = require("./utils/dbErrors");
 const app = express();
 
 app.use(helmet());
-app.use(cors());
-app.use(express.json());
+app.use(cors(getCorsOptions()));
+app.use(express.json({ limit: getJsonLimit() }));
 app.use(morgan("dev"));
 
 app.use("/api/health", healthRoutes);
@@ -50,9 +51,13 @@ app.use((req, res) => {
 app.use((error, req, res, next) => {
   const mappedError = mapDbError(error);
   const statusCode = mappedError.statusCode || 500;
+  const message =
+    isProduction() && statusCode >= 500
+      ? "Error interno del servidor"
+      : mappedError.message || "Error interno del servidor";
 
   res.status(statusCode).json({
-    message: mappedError.message || "Error interno del servidor",
+    message,
   });
 });
 

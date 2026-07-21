@@ -88,6 +88,7 @@ Ejemplo en `backend/.env.example`:
 
 ```env
 PORT=3000
+NODE_ENV=development
 
 DB_HOST=localhost
 DB_PORT=5432
@@ -99,9 +100,16 @@ JWT_SECRET=change_this_development_secret
 JWT_EXPIRES_IN=8h
 
 LICENSE_ENCRYPTION_KEY=change_this_license_encryption_key
+
+CORS_ORIGIN=http://localhost:5173
+JSON_BODY_LIMIT=100kb
+LOGIN_RATE_LIMIT_WINDOW_MS=900000
+LOGIN_RATE_LIMIT_MAX=5
 ```
 
 `JWT_SECRET` y `LICENSE_ENCRYPTION_KEY` deben generarse como cadenas aleatorias largas y no deben subirse al repositorio.
+
+En producción, el backend valida que ambas claves existan, no sean placeholders, tengan al menos 32 caracteres y sean diferentes.
 
 Ejemplo para generar una clave:
 
@@ -402,7 +410,6 @@ Pendiente o siguiente etapa:
 - Swagger/OpenAPI formal.
 - Rate limit en login.
 - Scheduler automático para expiración, si se requiere.
-- Endurecimiento de configuración CORS por entorno.
 
 ## Notas de Diseño
 
@@ -415,3 +422,13 @@ El diseño evita pérdida de datos usando:
 - Cifrado del código real.
 - Enmascarado para la interfaz.
 - Baja lógica solo donde corresponde.
+
+## Seguridad Adicional
+
+El backend incluye:
+
+- Rate limit en `POST /api/auth/login`.
+- CORS configurable por `.env`.
+- Límite de tamaño JSON configurable.
+- Ocultamiento de errores internos cuando `NODE_ENV=production`.
+- Validación de `JWT_SECRET` y `LICENSE_ENCRYPTION_KEY` en producción.

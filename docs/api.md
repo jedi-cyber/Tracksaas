@@ -16,6 +16,8 @@ El backend usa JWT por encabezado `Authorization`.
 Authorization: Bearer <token>
 ```
 
+`POST /auth/login` tiene rate limit configurable por `.env`.
+
 ### Login
 
 ```http
@@ -498,5 +500,11 @@ El backend valida:
 ```json
 {
   "message": "El lote ya alcanzó la cantidad máxima de licencias"
+}
+```
+
+```json
+{
+  "message": "Demasiados intentos de inicio de sesión. Intente nuevamente más tarde"
 }
 ```
