@@ -3,14 +3,16 @@ const apiError = require("../utils/apiError");
 const { recordAudit } = require("../utils/audit");
 const mapDbError = require("../utils/dbErrors");
 const { getPagination, paginatedResponse } = require("../utils/pagination");
+const {
+  validateBoolean,
+  validateEmail,
+  validatePositiveInteger,
+  validateString,
+} = require("../utils/validators");
 
 function toSafeUser(row) {
   const { password_hash, total_count, ...safeRow } = row;
   return safeRow;
-}
-
-function validateEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
 }
 
 function validateUser(payload, partial = false) {
@@ -24,16 +26,18 @@ function validateUser(payload, partial = false) {
     });
   }
 
-  if (payload.name !== undefined && !String(payload.name).trim()) {
-    throw apiError("El nombre del usuario no puede estar vacío");
-  }
-
-  if (payload.email !== undefined && !validateEmail(payload.email)) {
-    throw apiError("El correo del usuario no tiene un formato válido");
-  }
+  validatePositiveInteger(payload, "role_id");
+  validateString(payload, "name", { max: 150 });
+  validateEmail(payload, "email");
+  validateString(payload, "email", { max: 255, allowBlank: true });
+  validateBoolean(payload, "active");
 
   if (payload.password !== undefined && String(payload.password).length < 8) {
     throw apiError("La contraseña debe tener al menos 8 caracteres");
+  }
+
+  if (payload.password !== undefined && String(payload.password).length > 128) {
+    throw apiError("La contraseña no puede superar 128 caracteres");
   }
 }
 

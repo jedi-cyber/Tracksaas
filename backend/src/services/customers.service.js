@@ -3,15 +3,20 @@ const apiError = require("../utils/apiError");
 const { recordAudit } = require("../utils/audit");
 const mapDbError = require("../utils/dbErrors");
 const { getPagination, paginatedResponse } = require("../utils/pagination");
+const { validateBoolean, validateEmail, validateString } = require("../utils/validators");
 
 function validateCustomer(payload, partial = false) {
   if (!partial && !payload.name) {
     throw apiError("El nombre del cliente es obligatorio");
   }
 
-  if (payload.name !== undefined && !String(payload.name).trim()) {
-    throw apiError("El nombre del cliente no puede estar vacío");
-  }
+  validateString(payload, "name", { max: 180 });
+  validateString(payload, "tax_id", { max: 30, allowBlank: true });
+  validateEmail(payload, "email");
+  validateString(payload, "email", { max: 255, allowBlank: true });
+  validateString(payload, "phone", { max: 40, allowBlank: true });
+  validateString(payload, "notes", { max: 2000, allowBlank: true });
+  validateBoolean(payload, "active");
 }
 
 async function listCustomers(query) {

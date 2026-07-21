@@ -3,15 +3,16 @@ const apiError = require("../utils/apiError");
 const { recordAudit } = require("../utils/audit");
 const mapDbError = require("../utils/dbErrors");
 const { getPagination, paginatedResponse } = require("../utils/pagination");
+const { validateBoolean, validateString } = require("../utils/validators");
 
 function validateProduct(payload, partial = false) {
   if (!partial && !payload.name) {
     throw apiError("El nombre del producto es obligatorio");
   }
 
-  if (payload.name !== undefined && !String(payload.name).trim()) {
-    throw apiError("El nombre del producto no puede estar vacío");
-  }
+  validateString(payload, "name", { max: 180 });
+  validateString(payload, "description", { max: 2000, allowBlank: true });
+  validateBoolean(payload, "active");
 }
 
 async function listProducts(query) {

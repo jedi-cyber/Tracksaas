@@ -3,8 +3,17 @@ const apiError = require("../utils/apiError");
 const { recordAudit } = require("../utils/audit");
 const mapDbError = require("../utils/dbErrors");
 const { getPagination, paginatedResponse } = require("../utils/pagination");
+const {
+  validateBoolean,
+  validateCurrency,
+  validateDate,
+  validateEnum,
+  validateNonNegativeNumber,
+  validatePositiveInteger,
+  validateString,
+} = require("../utils/validators");
 
-const BATCH_STATUSES = new Set(["draft", "confirmed", "cancelled"]);
+const BATCH_STATUSES = ["draft", "confirmed", "cancelled"];
 
 function validateBatch(payload, partial = false) {
   const required = ["variant_id", "provider_id", "batch_number", "purchase_date", "quantity", "unit_cost"];
@@ -17,9 +26,16 @@ function validateBatch(payload, partial = false) {
     });
   }
 
-  if (payload.status !== undefined && !BATCH_STATUSES.has(payload.status)) {
-    throw apiError("status debe ser draft, confirmed o cancelled");
-  }
+  validatePositiveInteger(payload, "variant_id");
+  validatePositiveInteger(payload, "provider_id");
+  validateString(payload, "batch_number", { max: 100 });
+  validateDate(payload, "purchase_date");
+  validatePositiveInteger(payload, "quantity");
+  validateNonNegativeNumber(payload, "unit_cost");
+  validateCurrency(payload, "currency_code");
+  validateEnum(payload, "status", BATCH_STATUSES);
+  validateString(payload, "notes", { max: 2000, allowBlank: true });
+  validateBoolean(payload, "active");
 }
 
 async function listBatches(query) {

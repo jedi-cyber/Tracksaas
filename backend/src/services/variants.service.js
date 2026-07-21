@@ -3,8 +3,16 @@ const apiError = require("../utils/apiError");
 const { recordAudit } = require("../utils/audit");
 const mapDbError = require("../utils/dbErrors");
 const { getPagination, paginatedResponse } = require("../utils/pagination");
+const {
+  validateBoolean,
+  validateCurrency,
+  validateEnum,
+  validateNonNegativeNumber,
+  validatePositiveInteger,
+  validateString,
+} = require("../utils/validators");
 
-const BILLING_CYCLES = new Set(["monthly", "annual"]);
+const BILLING_CYCLES = ["monthly", "annual"];
 
 function validateVariant(payload, partial = false) {
   const required = ["product_id", "name", "billing_cycle"];
@@ -17,13 +25,14 @@ function validateVariant(payload, partial = false) {
     });
   }
 
-  if (payload.name !== undefined && !String(payload.name).trim()) {
-    throw apiError("El nombre de la variante no puede estar vacío");
-  }
-
-  if (payload.billing_cycle !== undefined && !BILLING_CYCLES.has(payload.billing_cycle)) {
-    throw apiError("billing_cycle debe ser monthly o annual");
-  }
+  validatePositiveInteger(payload, "product_id");
+  validateString(payload, "name", { max: 180 });
+  validateString(payload, "default_code", { max: 100, allowBlank: true });
+  validateEnum(payload, "billing_cycle", BILLING_CYCLES);
+  validatePositiveInteger(payload, "duration_days");
+  validateNonNegativeNumber(payload, "default_cost");
+  validateCurrency(payload, "currency_code");
+  validateBoolean(payload, "active");
 }
 
 async function listVariants(query) {

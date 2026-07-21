@@ -8,9 +8,19 @@ const {
   maskLicenseCode,
 } = require("../utils/licenseCrypto");
 const { getPagination, paginatedResponse } = require("../utils/pagination");
+const {
+  validateBoolean,
+  validateCurrency,
+  validateDate,
+  validateDateOrder,
+  validateEnum,
+  validateNonNegativeNumber,
+  validatePositiveInteger,
+  validateString,
+} = require("../utils/validators");
 
-const LICENSE_STATUSES = new Set(["available", "reserved", "activated", "expired", "cancelled"]);
-const BILLING_CYCLES = new Set(["monthly", "annual"]);
+const LICENSE_STATUSES = ["available", "reserved", "activated", "expired", "cancelled"];
+const BILLING_CYCLES = ["monthly", "annual"];
 
 function validateLicense(payload, partial = false) {
   const required = [
@@ -32,21 +42,20 @@ function validateLicense(payload, partial = false) {
     });
   }
 
-  if (payload.name !== undefined && !String(payload.name).trim()) {
-    throw apiError("El nombre de la licencia no puede estar vacío");
-  }
-
-  if (payload.license_code !== undefined && !String(payload.license_code).trim()) {
-    throw apiError("El código de licencia no puede estar vacío");
-  }
-
-  if (payload.status !== undefined && !LICENSE_STATUSES.has(payload.status)) {
-    throw apiError("status debe ser available, reserved, activated, expired o cancelled");
-  }
-
-  if (payload.billing_cycle !== undefined && !BILLING_CYCLES.has(payload.billing_cycle)) {
-    throw apiError("billing_cycle debe ser monthly o annual");
-  }
+  validatePositiveInteger(payload, "batch_id");
+  validatePositiveInteger(payload, "responsible_user_id");
+  validateString(payload, "name", { max: 180 });
+  validateString(payload, "license_code", { max: 500 });
+  validateEnum(payload, "status", LICENSE_STATUSES);
+  validateDate(payload, "start_date");
+  validateDate(payload, "next_renewal_date");
+  validateDate(payload, "expiration_date");
+  validateDateOrder(payload, "start_date", "next_renewal_date");
+  validateNonNegativeNumber(payload, "cost");
+  validateEnum(payload, "billing_cycle", BILLING_CYCLES);
+  validateCurrency(payload, "currency_code");
+  validateString(payload, "notes", { max: 2000, allowBlank: true });
+  validateBoolean(payload, "active");
 
   if (payload.status === "activated" && !payload.activation_date) {
     throw apiError("Una licencia activada requiere activation_date");

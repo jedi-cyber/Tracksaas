@@ -3,15 +3,21 @@ const apiError = require("../utils/apiError");
 const { recordAudit } = require("../utils/audit");
 const mapDbError = require("../utils/dbErrors");
 const { getPagination, paginatedResponse } = require("../utils/pagination");
+const { validateBoolean, validateEmail, validateString } = require("../utils/validators");
 
 function validateProvider(payload, partial = false) {
   if (!partial && !payload.name) {
     throw apiError("El nombre del proveedor es obligatorio");
   }
 
-  if (payload.name !== undefined && !String(payload.name).trim()) {
-    throw apiError("El nombre del proveedor no puede estar vacío");
-  }
+  validateString(payload, "name", { max: 180 });
+  validateString(payload, "tax_id", { max: 30, allowBlank: true });
+  validateString(payload, "contact_name", { max: 150, allowBlank: true });
+  validateEmail(payload, "email");
+  validateString(payload, "email", { max: 255, allowBlank: true });
+  validateString(payload, "phone", { max: 40, allowBlank: true });
+  validateString(payload, "notes", { max: 2000, allowBlank: true });
+  validateBoolean(payload, "active");
 }
 
 async function listProviders(query) {
