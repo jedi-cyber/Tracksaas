@@ -16,13 +16,14 @@ No se usa un único contenedor para todo el sistema. Cada componente corre separ
 
 - PostgreSQL mantiene su propio volumen persistente.
 - Backend se conecta a PostgreSQL por red interna de Docker.
-- Frontend se expone en el puerto de Vite.
+- Backend no se publica al host; queda disponible solo para otros contenedores.
+- Frontend se expone en el puerto de Vite y es la única URL que deben usar los usuarios.
 
 ## Puertos
 
 ```text
 PostgreSQL: 5432
-Backend:    3000
+Backend:    3000 interno, no publicado al host
 Frontend:   5173
 ```
 
@@ -30,9 +31,6 @@ URLs:
 
 ```text
 Frontend: http://localhost:5173
-Backend:  http://localhost:3000/api
-Health:   http://localhost:3000/api/health
-DB check: http://localhost:3000/api/health/db
 ```
 
 Para usuarios finales, la URL de trabajo es:
@@ -42,6 +40,13 @@ http://localhost:5173
 ```
 
 El frontend consume la API mediante `/api`. En Docker, Vite proxyea esas solicitudes hacia `http://backend:3000`, por lo que el usuario no necesita navegar manualmente al backend.
+
+Desde el navegador no se debe abrir `http://localhost:3000`, porque el backend no está expuesto fuera de Docker. Para revisar la API, usar el contenedor:
+
+```bash
+docker compose exec backend wget -qO- http://localhost:3000/api/health
+docker compose exec backend wget -qO- http://localhost:3000/api/health/db
+```
 
 ## Archivos Usados
 
@@ -242,13 +247,29 @@ docker compose logs backend
 
 Confirmar que `DB_HOST=postgres`.
 
-### Puerto ocupado
+### Puerto 3000 ocupado
 
-Si algún puerto está en uso, cambiar el mapeo en `docker-compose.yml`.
+El backend no publica el puerto `3000` al host. Si aparece un error con `0.0.0.0:3000`, confirmar que `docker-compose.yml` tenga:
 
-Ejemplo:
+```yaml
+expose:
+  - "3000"
+```
+
+No debe tener:
 
 ```yaml
 ports:
-  - "3001:3000"
+  - "3000:3000"
 ```
+
+### Puerto 5173 ocupado
+
+Si el frontend no inicia porque `5173` está ocupado, detener el Vite local que esté corriendo o cambiar temporalmente el puerto publicado:
+
+```yaml
+ports:
+  - "5174:5173"
+```
+
+En ese caso la URL sería `http://localhost:5174`.
