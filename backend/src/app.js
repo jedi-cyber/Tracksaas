@@ -17,6 +17,7 @@ const rolesRoutes = require("./routes/roles.routes");
 const usersRoutes = require("./routes/users.routes");
 const variantsRoutes = require("./routes/variants.routes");
 const { requireAuth } = require("./middlewares/auth.middleware");
+const { requirePermission } = require("./middlewares/permissions.middleware");
 const mapDbError = require("./utils/dbErrors");
 
 const app = express();
@@ -28,17 +29,17 @@ app.use(morgan("dev"));
 
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api/activations", requireAuth, activationsRoutes);
-app.use("/api/audit-logs", requireAuth, auditLogsRoutes);
-app.use("/api/roles", requireAuth, rolesRoutes);
-app.use("/api/users", requireAuth, usersRoutes);
-app.use("/api/providers", requireAuth, providersRoutes);
-app.use("/api/customers", requireAuth, customersRoutes);
-app.use("/api/products", requireAuth, productsRoutes);
-app.use("/api/variants", requireAuth, variantsRoutes);
-app.use("/api/batches", requireAuth, batchesRoutes);
-app.use("/api/licenses", requireAuth, licensesRoutes);
-app.use("/api/dashboard", requireAuth, dashboardRoutes);
+app.use("/api/activations", requireAuth, requirePermission("activations"), activationsRoutes);
+app.use("/api/audit-logs", requireAuth, requirePermission("auditLogs"), auditLogsRoutes);
+app.use("/api/roles", requireAuth, requirePermission("roles"), rolesRoutes);
+app.use("/api/users", requireAuth, requirePermission("users"), usersRoutes);
+app.use("/api/providers", requireAuth, requirePermission("providers"), providersRoutes);
+app.use("/api/customers", requireAuth, requirePermission("customers"), customersRoutes);
+app.use("/api/products", requireAuth, requirePermission("products"), productsRoutes);
+app.use("/api/variants", requireAuth, requirePermission("variants"), variantsRoutes);
+app.use("/api/batches", requireAuth, requirePermission("batches"), batchesRoutes);
+app.use("/api/licenses", requireAuth, requirePermission("licenses"), licensesRoutes);
+app.use("/api/dashboard", requireAuth, requirePermission("dashboard"), dashboardRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
