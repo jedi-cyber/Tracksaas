@@ -47,8 +47,8 @@ const RESOURCE_PERMISSIONS = {
     viewer: ["read"],
   },
   licenses: {
-    administrator: ["read", "create", "update", "delete", "activate", "reserve"],
-    license_user: ["read", "create", "update", "activate", "reserve"],
+    administrator: ["read", "create", "update", "delete", "activate", "reserve", "expire"],
+    license_user: ["read", "create", "update", "activate", "reserve", "expire"],
     viewer: ["read"],
   },
   dashboard: {
@@ -59,6 +59,14 @@ const RESOURCE_PERMISSIONS = {
 };
 
 function actionFromRequest(req, resourceName) {
+  if (
+    resourceName === "licenses" &&
+    req.method === "POST" &&
+    req.path.split("/").filter(Boolean).includes("expire-overdue")
+  ) {
+    return "expire";
+  }
+
   if (
     resourceName === "licenses" &&
     req.method === "POST" &&

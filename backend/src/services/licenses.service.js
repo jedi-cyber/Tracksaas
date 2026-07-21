@@ -383,7 +383,7 @@ async function updateLicense(id, payload, userId, ipAddress) {
 }
 
 async function deactivateLicense(id, userId, ipAddress) {
-  return updateLicense(id, { active: false, status: "cancelled" }, userId, ipAddress);
+  return updateLicense(id, { status: "cancelled" }, userId, ipAddress);
 }
 
 async function reserveLicense(id, payload, userId, ipAddress) {
@@ -512,6 +512,79 @@ async function releaseReservation(id, payload, userId, ipAddress) {
   }
 }
 
+async function expireOverdueLicenses(userId, ipAddress) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const oldResult = await client.query(
+      `
+        SELECT *
+        FROM license_units
+        WHERE active = TRUE
+          AND status IN ('available', 'reserved', 'activated')
+          AND next_renewal_date < CURRENT_DATE
+        ORDER BY next_renewal_date ASC, id ASC
+        FOR UPDATE
+      `
+    );
+
+    if (oldResult.rows.length === 0) {
+      await client.query("COMMIT");
+      return {
+        expiredCount: 0,
+        licenses: [],
+      };
+    }
+
+    const ids = oldResult.rows.map((license) => license.id);
+
+    const updateResult = await client.query(
+      `
+        UPDATE license_units
+        SET
+          status = 'expired',
+          expiration_date = COALESCE(expiration_date, next_renewal_date),
+          write_uid = $2
+        WHERE id = ANY($1::BIGINT[])
+        RETURNING *
+      `,
+      [ids, userId]
+    );
+
+    const oldById = new Map(oldResult.rows.map((license) => [String(license.id), license]));
+    const safeLicenses = updateResult.rows.map(publicLicense);
+
+    for (const newLicense of updateResult.rows) {
+      await recordAudit(client, {
+        userId,
+        entityName: "license_units",
+        entityId: newLicense.id,
+        action: "update",
+        oldValues: publicLicense(oldById.get(String(newLicense.id))),
+        newValues: {
+          operation: "expire_overdue",
+          license: publicLicense(newLicense),
+        },
+        ipAddress,
+      });
+    }
+
+    await client.query("COMMIT");
+
+    return {
+      expiredCount: safeLicenses.length,
+      licenses: safeLicenses,
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw mapDbError(error);
+  } finally {
+    client.release();
+  }
+}
+
 async function activateLicense(id, payload, userId, ipAddress) {
   const client = await pool.connect();
 
@@ -623,5 +696,6 @@ module.exports = {
   deactivateLicense,
   reserveLicense,
   releaseReservation,
+  expireOverdueLicenses,
   activateLicense,
 };

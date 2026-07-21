@@ -75,6 +75,15 @@ async function releaseReservation(req, res, next) {
   }
 }
 
+async function expireOverdue(req, res, next) {
+  try {
+    const data = await licensesService.expireOverdueLicenses(req.user.id, req.ip);
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   list,
   get,
@@ -84,4 +93,5 @@ module.exports = {
   activate,
   reserve,
   releaseReservation,
+  expireOverdue,
 };

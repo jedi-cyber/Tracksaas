@@ -227,7 +227,7 @@ async function updateBatch(id, payload, userId, ipAddress) {
 }
 
 async function deactivateBatch(id, userId, ipAddress) {
-  return updateBatch(id, { active: false, status: "cancelled" }, userId, ipAddress);
+  return updateBatch(id, { status: "cancelled" }, userId, ipAddress);
 }
 
 module.exports = {
