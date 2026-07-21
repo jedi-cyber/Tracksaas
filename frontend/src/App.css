@@ -253,14 +253,35 @@ button:disabled {
   justify-content: flex-end;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.modal-window {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 18px;
+  border: 1px solid #dce3ee;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
+}
+
+.modal-large {
+  width: min(980px, 100%);
+}
+
 .wizard-panel {
   display: grid;
   gap: 18px;
-  margin-bottom: 18px;
-  padding: 16px;
-  border: 1px solid #dce3ee;
-  border-radius: 8px;
-  background: #f8fbff;
 }
 
 .wizard-steps {
@@ -307,14 +328,9 @@ button:disabled {
   justify-content: flex-end;
 }
 
-.entity-panel {
+.entity-form {
   display: grid;
   gap: 16px;
-  margin-bottom: 18px;
-  padding: 16px;
-  border: 1px solid #dce3ee;
-  border-radius: 8px;
-  background: #f8fbff;
 }
 
 .form-grid {

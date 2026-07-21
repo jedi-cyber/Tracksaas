@@ -1,0 +1,194 @@
+import { useEffect, useState } from 'react'
+import Modal from './Modal'
+import { formatValue } from '../utils/formatters'
+import { buildPayload, initialFormState, validateForm } from '../utils/forms'
+
+function EntityModal({ api, config, formConfig, mode, row, setError, onClose, onSaved }) {
+  const [form, setForm] = useState(() => initialFormState(formConfig.fields, row, mode))
+  const [options, setOptions] = useState({})
+  const [loadingOptions, setLoadingOptions] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const isDetail = mode === 'detail'
+  const title = mode === 'create' ? `Nuevo: ${config.title}` : mode === 'edit' ? `Editar: ${config.title}` : `Detalle: ${config.title}`
+
+  useEffect(() => {
+    setForm(initialFormState(formConfig.fields, row, mode))
+  }, [formConfig, row, mode])
+
+  useEffect(() => {
+    const optionSources = formConfig.options || []
+    if (!optionSources.length || isDetail) return
+
+    setLoadingOptions(true)
+    Promise.all(optionSources.map((source) => api.request(source.path)))
+      .then((responses) => {
+        const nextOptions = {}
+        optionSources.forEach((source, index) => {
+          nextOptions[source.name] = responses[index].data || []
+        })
+        setOptions(nextOptions)
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoadingOptions(false))
+  }, [api, formConfig.options, isDetail, setError])
+
+  function updateField(field, value) {
+    setForm((current) => ({ ...current, [field]: value }))
+  }
+
+  async function submit(event) {
+    event.preventDefault()
+    const validationError = validateForm(formConfig.fields, form, mode)
+
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+
+    setSaving(true)
+    setError('')
+
+    try {
+      const payload = buildPayload(formConfig.fields, form, mode)
+      await api.request(mode === 'create' ? config.path : `${config.path}/${row.id}`, {
+        method: mode === 'create' ? 'POST' : 'PUT',
+        body: JSON.stringify(payload),
+      })
+      await onSaved()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title={title} eyebrow={isDetail ? 'Consulta' : 'Formulario'} onClose={onClose} size="large">
+      {isDetail ? (
+        <div className="detail-grid">
+          {Object.entries(row || {}).map(([key, value]) => (
+            <div key={key}>
+              <span>{key}</span>
+              <strong>{formatValue(value)}</strong>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <form className="entity-form" onSubmit={submit}>
+          {loadingOptions ? (
+            <p>Cargando opciones...</p>
+          ) : (
+            <div className="form-grid">
+              {formConfig.fields.map((field) => (
+                <FieldControl
+                  key={field.name}
+                  field={field}
+                  value={form[field.name]}
+                  options={options[field.optionSource] || []}
+                  disabled={saving}
+                  mode={mode}
+                  onChange={(value) => updateField(field.name, value)}
+                />
+              ))}
+            </div>
+          )}
+
+          <div className="form-actions">
+            <button type="button" className="secondary-button" onClick={onClose}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving || loadingOptions}>
+              {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      )}
+    </Modal>
+  )
+}
+
+function FieldControl({ field, value, options, disabled, mode, onChange }) {
+  const className = field.full ? 'full-span' : ''
+  const required = field.required || (mode === 'create' && field.requiredOnCreate)
+
+  if (field.type === 'checkbox') {
+    return (
+      <label className={`checkbox-field ${className}`}>
+        <input
+          type="checkbox"
+          checked={Boolean(value)}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        {field.label}
+      </label>
+    )
+  }
+
+  if (field.type === 'textarea') {
+    return (
+      <label className={className}>
+        {field.label}
+        <textarea
+          value={value || ''}
+          maxLength={field.maxLength}
+          disabled={disabled}
+          rows="3"
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </label>
+    )
+  }
+
+  if (field.type === 'select') {
+    const choices = field.staticOptions || options.map((item) => ({
+      value: item.id,
+      label: field.secondaryKey
+        ? `${item[field.labelKey]} · ${item[field.secondaryKey] || ''}`
+        : item[field.labelKey],
+    }))
+
+    return (
+      <label className={className}>
+        {field.label}
+        <select
+          value={value || ''}
+          required={required}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          <option value="">Seleccionar</option>
+          {choices.map((choice) => (
+            <option key={choice.value} value={choice.value}>
+              {choice.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    )
+  }
+
+  return (
+    <label className={className}>
+      {field.label}
+      <input
+        type={field.type || 'text'}
+        value={value || ''}
+        required={required}
+        min={field.min}
+        step={field.step}
+        maxLength={field.maxLength}
+        disabled={disabled}
+        placeholder={field.requiredOnCreate && mode === 'edit' ? 'Dejar vacío para conservar' : ''}
+        onChange={(event) => {
+          const nextValue = field.transform === 'uppercase'
+            ? event.target.value.toUpperCase()
+            : event.target.value
+          onChange(nextValue)
+        }}
+      />
+    </label>
+  )
+}
+
+export default EntityModal
