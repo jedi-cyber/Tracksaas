@@ -1,6 +1,6 @@
 export const modules = [
   { id: 'dashboard', label: 'Dashboard' },
-  { id: 'licenses', label: 'Licencias' },
+  { id: 'licenses', label: 'Activar licencias' },
   { id: 'batches', label: 'Lotes' },
   { id: 'products', label: 'Productos' },
   { id: 'variants', label: 'Variantes' },
@@ -8,7 +8,7 @@ export const modules = [
   { id: 'providers', label: 'Proveedores' },
   { id: 'users', label: 'Usuarios' },
   { id: 'roles', label: 'Roles' },
-  { id: 'activations', label: 'Activaciones' },
+  { id: 'activations', label: 'Ya activadas' },
   { id: 'audit', label: 'Auditoría' },
 ]
 
@@ -18,7 +18,8 @@ export const tableConfig = {
     title: 'Licencias',
     columns: [
       ['name', 'Nombre'],
-      ['masked_code', 'Código'],
+      ['commercial_identifier', 'Identificador comercial'],
+      ['masked_code', 'Código único'],
       ['status', 'Estado'],
       ['next_renewal_date', 'Renovación'],
       ['cost', 'Costo'],
@@ -104,7 +105,8 @@ export const tableConfig = {
     title: 'Activaciones',
     columns: [
       ['license_name', 'Licencia'],
-      ['masked_code', 'Código'],
+      ['commercial_identifier', 'Identificador comercial'],
+      ['masked_code', 'Código único'],
       ['customer_name', 'Cliente'],
       ['activated_by_name', 'Activó'],
       ['activation_date', 'Fecha'],
@@ -127,6 +129,7 @@ export const tableConfig = {
 
 export const formConfig = {
   licenses: {
+    guideText: 'Para crear una licencia necesitas un lote y un responsable. Si el lote no existe, créalo desde este mismo formulario.',
     options: [
       {
         name: 'batch_id',
@@ -149,7 +152,8 @@ export const formConfig = {
       { name: 'batch_id', label: 'Lote', type: 'select', required: true, optionSource: 'batch_id' },
       { name: 'responsible_user_id', label: 'Responsable', type: 'select', required: true, optionSource: 'responsible_user_id' },
       { name: 'name', label: 'Nombre', required: true, maxLength: 180 },
-      { name: 'license_code', label: 'Nuevo código real', type: 'password', maxLength: 500 },
+      { name: 'commercial_identifier', label: 'Identificador comercial', required: true, maxLength: 180 },
+      { name: 'license_code', label: 'Nuevo código único real', type: 'password', maxLength: 500 },
       {
         name: 'status',
         label: 'Estado',
@@ -162,7 +166,6 @@ export const formConfig = {
         ],
       },
       { name: 'start_date', label: 'Fecha de inicio', type: 'date', required: true },
-      { name: 'next_renewal_date', label: 'Próxima renovación', type: 'date', required: true },
       { name: 'expiration_date', label: 'Fecha de vencimiento', type: 'date' },
       { name: 'cost', label: 'Costo', type: 'number', min: 0, step: '0.01', required: true },
       {
@@ -181,6 +184,7 @@ export const formConfig = {
     ],
   },
   products: {
+    guideText: 'Primero registra el producto base. Al guardar, el sistema continuará con la variante de ese producto.',
     fields: [
       { name: 'name', label: 'Nombre', required: true, maxLength: 180 },
       { name: 'description', label: 'Descripción', type: 'textarea', maxLength: 2000, full: true },
@@ -188,6 +192,7 @@ export const formConfig = {
     ],
   },
   variants: {
+    guideText: 'Una variante pertenece a un producto. Define su ciclo, costo y duración antes de crear lotes.',
     options: [
       {
         name: 'product_id',
@@ -219,6 +224,7 @@ export const formConfig = {
     ],
   },
   batches: {
+    guideText: 'Un lote agrupa licencias de una variante. Aquí sí se selecciona proveedor porque el lote registra la compra.',
     options: [
       {
         name: 'variant_id',
@@ -260,6 +266,7 @@ export const formConfig = {
     ],
   },
   providers: {
+    guideText: 'Registra solo datos del proveedor. No se crearán productos automáticamente desde aquí.',
     fields: [
       { name: 'name', label: 'Nombre', required: true, maxLength: 180 },
       { name: 'tax_id', label: 'Documento fiscal', maxLength: 30 },
@@ -271,6 +278,7 @@ export const formConfig = {
     ],
   },
   customers: {
+    guideText: 'Registra los datos del cliente para futuras activaciones o trazabilidad.',
     fields: [
       { name: 'name', label: 'Nombre', required: true, maxLength: 180 },
       { name: 'tax_id', label: 'Documento', maxLength: 30 },
@@ -281,6 +289,7 @@ export const formConfig = {
     ],
   },
   users: {
+    guideText: 'Crea el usuario y asigna su rol. Si el rol no existe, puedes crearlo aquí mismo.',
     options: [
       {
         name: 'role_id',
@@ -299,6 +308,7 @@ export const formConfig = {
     ],
   },
   roles: {
+    guideText: 'Define el rol administrativo. Los permisos reales se aplican según la configuración del sistema.',
     fields: [
       { name: 'name', label: 'Nombre', required: true, maxLength: 80 },
       { name: 'description', label: 'Descripción', type: 'textarea', maxLength: 1000, full: true },

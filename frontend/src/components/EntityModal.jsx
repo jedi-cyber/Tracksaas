@@ -14,8 +14,12 @@ function EntityModal({
   onClose,
   onSaved,
   relatedActions = {},
+  initialValues,
+  guideText,
 }) {
-  const [form, setForm] = useState(() => initialFormState(formConfig.fields, row, mode))
+  const safeInitialValues = initialValues || {}
+  const initialValuesKey = JSON.stringify(safeInitialValues)
+  const [form, setForm] = useState(() => initialFormState(formConfig.fields, row, mode, safeInitialValues))
   const [options, setOptions] = useState({})
   const [loadingOptions, setLoadingOptions] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -24,8 +28,8 @@ function EntityModal({
   const title = mode === 'create' ? `Nuevo: ${config.title}` : mode === 'edit' ? `Editar: ${config.title}` : `Detalle: ${config.title}`
 
   useEffect(() => {
-    setForm(initialFormState(formConfig.fields, row, mode))
-  }, [formConfig, row, mode])
+    setForm(initialFormState(formConfig.fields, row, mode, safeInitialValues))
+  }, [formConfig, row, mode, initialValuesKey])
 
   async function loadOptions() {
     const optionSources = formConfig.options || []
@@ -91,6 +95,7 @@ function EntityModal({
         </div>
       ) : (
         <form className="entity-form" onSubmit={submit}>
+          {guideText && <p className="guide-text">{guideText}</p>}
           {loadingOptions ? (
             <p>Cargando opciones...</p>
           ) : (
@@ -146,6 +151,8 @@ function EntityModal({
           mode="create"
           row={null}
           setError={setError}
+          initialValues={relatedModal.initialValues || {}}
+          guideText={allFormConfig[relatedModal.moduleId]?.guideText}
           onClose={() => setRelatedModal(null)}
           onSaved={async (createdRow) => {
             setRelatedModal(null)

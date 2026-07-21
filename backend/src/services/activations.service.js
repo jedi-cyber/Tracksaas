@@ -15,6 +15,7 @@ function getActivationSelect() {
       la.notes,
       la.create_date,
       lu.name AS license_name,
+      lu.commercial_identifier,
       lu.masked_code,
       lu.status AS license_status,
       lu.next_renewal_date,
@@ -57,6 +58,7 @@ async function listActivations(query) {
         AND (
           $6::TEXT IS NULL
           OR activation_data.license_name ILIKE $6
+          OR activation_data.commercial_identifier ILIKE $6
           OR activation_data.masked_code ILIKE $6
           OR activation_data.customer_name ILIKE $6
           OR activation_data.device_reference ILIKE $6

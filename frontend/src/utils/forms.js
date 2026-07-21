@@ -1,11 +1,11 @@
-export function initialFormState(fields, row, mode) {
+export function initialFormState(fields, row, mode, initialValues = {}) {
   return fields.reduce((state, field) => {
     if (field.name === 'password' && mode === 'edit') {
       state[field.name] = ''
       return state
     }
 
-    const rowValue = row?.[field.name]
+    const rowValue = row?.[field.name] ?? initialValues[field.name]
     if (rowValue !== undefined && rowValue !== null) {
       state[field.name] = normalizeFormValue(field, rowValue)
     } else if (field.defaultValue !== undefined) {
@@ -69,10 +69,6 @@ export function validateForm(fields, form, mode) {
         return `El campo ${field.label} debe ser un número válido.`
       }
     }
-  }
-
-  if (form.start_date && form.next_renewal_date && new Date(form.next_renewal_date) < new Date(form.start_date)) {
-    return 'La próxima renovación no puede ser menor que la fecha de inicio.'
   }
 
   return null

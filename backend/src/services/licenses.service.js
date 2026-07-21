@@ -27,11 +27,10 @@ function validateLicense(payload, partial = false) {
     "batch_id",
     "responsible_user_id",
     "name",
+    "commercial_identifier",
     "license_code",
     "start_date",
-    "next_renewal_date",
     "cost",
-    "billing_cycle",
   ];
 
   if (!partial) {
@@ -45,6 +44,7 @@ function validateLicense(payload, partial = false) {
   validatePositiveInteger(payload, "batch_id");
   validatePositiveInteger(payload, "responsible_user_id");
   validateString(payload, "name", { max: 180 });
+  validateString(payload, "commercial_identifier", { max: 180 });
   validateString(payload, "license_code", { max: 500 });
   validateEnum(payload, "status", LICENSE_STATUSES);
   validateDate(payload, "start_date");
@@ -72,6 +72,42 @@ function publicLicense(row) {
   return safeRow;
 }
 
+function fallbackDurationDays(billingCycle) {
+  return billingCycle === "monthly" ? 30 : 365;
+}
+
+async function getBatchRenewalDefaults(client, batchId) {
+  const { rows } = await client.query(
+    `
+      SELECT pv.billing_cycle, pv.duration_days
+      FROM license_batches lb
+      JOIN product_variants pv ON pv.id = lb.variant_id
+      WHERE lb.id = $1
+    `,
+    [batchId]
+  );
+
+  if (!rows[0]) {
+    throw apiError("Lote no encontrado", 404);
+  }
+
+  return rows[0];
+}
+
+function calculateRenewalDate(startDate, durationDays) {
+  const date = new Date(`${startDate}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + Number(durationDays));
+  return date.toISOString().slice(0, 10);
+}
+
+function toDateInput(value) {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  return String(value).slice(0, 10);
+}
+
 function publicActivation(row) {
   return row;
 }
@@ -91,6 +127,7 @@ async function listLicenses(query) {
         lu.batch_id,
         lu.responsible_user_id,
         lu.name,
+        lu.commercial_identifier,
         lu.masked_code,
         lu.status,
         lu.start_date,
@@ -120,7 +157,12 @@ async function listLicenses(query) {
         AND ($2::TEXT IS NULL OR lu.status = $2)
         AND ($3::BIGINT IS NULL OR lu.batch_id = $3)
         AND ($4::BIGINT IS NULL OR lu.responsible_user_id = $4)
-        AND ($5::TEXT IS NULL OR lu.name ILIKE $5 OR lu.masked_code ILIKE $5)
+        AND (
+          $5::TEXT IS NULL
+          OR lu.name ILIKE $5
+          OR lu.commercial_identifier ILIKE $5
+          OR lu.masked_code ILIKE $5
+        )
       ORDER BY lu.next_renewal_date ASC, lu.id DESC
       LIMIT $6 OFFSET $7
     `,
@@ -138,6 +180,7 @@ async function getLicense(id) {
         lu.batch_id,
         lu.responsible_user_id,
         lu.name,
+        lu.commercial_identifier,
         lu.masked_code,
         lu.status,
         lu.start_date,
@@ -185,7 +228,13 @@ async function createLicense(payload, userId, ipAddress) {
     await client.query("BEGIN");
 
     const batchCapacity = await client.query(
-      "SELECT id, quantity FROM license_batches WHERE id = $1 FOR UPDATE",
+      `
+        SELECT lb.id, lb.quantity, pv.billing_cycle, pv.duration_days
+        FROM license_batches lb
+        JOIN product_variants pv ON pv.id = lb.variant_id
+        WHERE lb.id = $1
+        FOR UPDATE OF lb
+      `,
       [payload.batch_id]
     );
 
@@ -194,6 +243,10 @@ async function createLicense(payload, userId, ipAddress) {
     if (!batch) {
       throw apiError("Lote no encontrado", 404);
     }
+
+    const billingCycle = payload.billing_cycle || batch.billing_cycle;
+    const durationDays = batch.duration_days || fallbackDurationDays(billingCycle);
+    const nextRenewalDate = calculateRenewalDate(payload.start_date, durationDays);
 
     const usedCapacity = await client.query(
       `
@@ -216,6 +269,7 @@ async function createLicense(payload, userId, ipAddress) {
           batch_id,
           responsible_user_id,
           name,
+          commercial_identifier,
           license_code_encrypted,
           license_code_hash,
           masked_code,
@@ -233,8 +287,8 @@ async function createLicense(payload, userId, ipAddress) {
           write_uid
         )
         VALUES (
-          $1, $2, $3, $4, $5, $6, COALESCE($7, 'available'), $8, $9, $10,
-          $11, $12, $13, COALESCE($14, 'PEN'), $15, COALESCE($16, TRUE), $17, $17
+          $1, $2, $3, $4, $5, $6, $7, COALESCE($8, 'available'), $9, $10,
+          $11, $12, $13, $14, COALESCE($15, 'PEN'), $16, COALESCE($17, TRUE), $18, $18
         )
         RETURNING *
       `,
@@ -242,16 +296,17 @@ async function createLicense(payload, userId, ipAddress) {
         payload.batch_id,
         payload.responsible_user_id,
         String(payload.name).trim(),
+        String(payload.commercial_identifier).trim(),
         encryptedCode,
         codeHash,
         maskedCode,
         payload.status || null,
         payload.start_date,
-        payload.next_renewal_date,
+        nextRenewalDate,
         payload.activation_date || null,
         payload.expiration_date || null,
         payload.cost,
-        payload.billing_cycle,
+        billingCycle,
         payload.currency_code || null,
         payload.notes || null,
         payload.active,
@@ -312,6 +367,21 @@ async function updateLicense(id, payload, userId, ipAddress) {
     }
 
     const action = payload.status === "cancelled" && oldLicense.status !== "cancelled" ? "cancel" : "update";
+    let nextRenewalDate = payload.next_renewal_date;
+    const shouldRecalculateRenewal =
+      payload.next_renewal_date === undefined &&
+      (payload.batch_id !== undefined ||
+        payload.start_date !== undefined ||
+        payload.billing_cycle !== undefined);
+
+    if (shouldRecalculateRenewal) {
+      const targetBatchId = payload.batch_id || oldLicense.batch_id;
+      const defaults = await getBatchRenewalDefaults(client, targetBatchId);
+      const targetBillingCycle = payload.billing_cycle || defaults.billing_cycle || oldLicense.billing_cycle;
+      const targetStartDate = payload.start_date || toDateInput(oldLicense.start_date);
+      const durationDays = defaults.duration_days || fallbackDurationDays(targetBillingCycle);
+      nextRenewalDate = calculateRenewalDate(targetStartDate, durationDays);
+    }
 
     const { rows } = await client.query(
       `
@@ -320,20 +390,21 @@ async function updateLicense(id, payload, userId, ipAddress) {
           batch_id = COALESCE($2, batch_id),
           responsible_user_id = COALESCE($3, responsible_user_id),
           name = COALESCE($4, name),
-          license_code_encrypted = COALESCE($5, license_code_encrypted),
-          license_code_hash = COALESCE($6, license_code_hash),
-          masked_code = COALESCE($7, masked_code),
-          status = COALESCE($8, status),
-          start_date = COALESCE($9, start_date),
-          next_renewal_date = COALESCE($10, next_renewal_date),
-          activation_date = COALESCE($11, activation_date),
-          expiration_date = COALESCE($12, expiration_date),
-          cost = COALESCE($13, cost),
-          billing_cycle = COALESCE($14, billing_cycle),
-          currency_code = COALESCE($15, currency_code),
-          notes = COALESCE($16, notes),
-          active = COALESCE($17, active),
-          write_uid = $18
+          commercial_identifier = COALESCE($5, commercial_identifier),
+          license_code_encrypted = COALESCE($6, license_code_encrypted),
+          license_code_hash = COALESCE($7, license_code_hash),
+          masked_code = COALESCE($8, masked_code),
+          status = COALESCE($9, status),
+          start_date = COALESCE($10, start_date),
+          next_renewal_date = COALESCE($11, next_renewal_date),
+          activation_date = COALESCE($12, activation_date),
+          expiration_date = COALESCE($13, expiration_date),
+          cost = COALESCE($14, cost),
+          billing_cycle = COALESCE($15, billing_cycle),
+          currency_code = COALESCE($16, currency_code),
+          notes = COALESCE($17, notes),
+          active = COALESCE($18, active),
+          write_uid = $19
         WHERE id = $1
         RETURNING *
       `,
@@ -342,12 +413,15 @@ async function updateLicense(id, payload, userId, ipAddress) {
         payload.batch_id,
         payload.responsible_user_id,
         payload.name !== undefined ? String(payload.name).trim() : null,
+        payload.commercial_identifier !== undefined
+          ? String(payload.commercial_identifier).trim()
+          : null,
         codeFields.encrypted || null,
         codeFields.hash || null,
         codeFields.masked || null,
         payload.status,
         payload.start_date,
-        payload.next_renewal_date,
+        nextRenewalDate,
         payload.activation_date,
         payload.expiration_date,
         payload.cost,

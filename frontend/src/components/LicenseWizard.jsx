@@ -3,7 +3,7 @@ import { formConfig, tableConfig } from '../config/modules'
 import EntityModal from './EntityModal'
 import Modal from './Modal'
 
-function LicenseWizard({ api, setError, onClose, onCreated }) {
+function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }) {
   const today = new Date().toISOString().slice(0, 10)
   const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
@@ -12,17 +12,23 @@ function LicenseWizard({ api, setError, onClose, onCreated }) {
   const [batches, setBatches] = useState([])
   const [users, setUsers] = useState([])
   const [form, setForm] = useState({
-    batch_id: '',
+    batch_id: initialValues.batch_id ? String(initialValues.batch_id) : '',
     responsible_user_id: '',
     name: '',
+    commercial_identifier: '',
     license_code: '',
     start_date: today,
-    next_renewal_date: '',
     cost: '',
     billing_cycle: 'annual',
     currency_code: 'PEN',
     notes: '',
   })
+
+  useEffect(() => {
+    if (initialValues.batch_id) {
+      setForm((current) => ({ ...current, batch_id: String(initialValues.batch_id) }))
+    }
+  }, [initialValues.batch_id])
 
   async function loadOptions() {
     setLoadingOptions(true)
@@ -45,10 +51,16 @@ function LicenseWizard({ api, setError, onClose, onCreated }) {
 
   function validateStep() {
     if (step === 1) {
-      return form.batch_id && form.responsible_user_id && form.name && form.license_code
+      return (
+        form.batch_id &&
+        form.responsible_user_id &&
+        form.name &&
+        form.commercial_identifier &&
+        form.license_code
+      )
     }
 
-    return form.start_date && form.next_renewal_date && form.cost && form.billing_cycle
+    return form.start_date && form.cost && form.billing_cycle
   }
 
   function nextStep() {
@@ -93,8 +105,11 @@ function LicenseWizard({ api, setError, onClose, onCreated }) {
   const selectedUser = users.find((item) => String(item.id) === String(form.responsible_user_id))
 
   return (
-    <Modal title="Nueva licencia" eyebrow="Wizard" onClose={onClose} size="large">
+    <Modal title="Nueva Activación" eyebrow="Wizard" onClose={onClose} size="large">
       <form className="wizard-panel" onSubmit={submit}>
+        <p className="guide-text">
+          La licencia se crea al final del flujo. La próxima renovación se calcula automáticamente desde la fecha de inicio y la duración de la variante.
+        </p>
         <div className="wizard-steps" aria-label="Pasos del registro de licencia">
           {['Datos', 'Vigencia', 'Revisión'].map((label, index) => (
             <button
@@ -150,7 +165,16 @@ function LicenseWizard({ api, setError, onClose, onCreated }) {
                 </label>
 
                 <label>
-                  Código real
+                  Identificador comercial
+                  <input
+                    value={form.commercial_identifier}
+                    onChange={(event) => updateField('commercial_identifier', event.target.value)}
+                    required
+                  />
+                </label>
+
+                <label>
+                  Código único real
                   <input value={form.license_code} onChange={(event) => updateField('license_code', event.target.value)} required />
                 </label>
               </div>
@@ -161,11 +185,6 @@ function LicenseWizard({ api, setError, onClose, onCreated }) {
                 <label>
                   Fecha de inicio
                   <input type="date" value={form.start_date} onChange={(event) => updateField('start_date', event.target.value)} required />
-                </label>
-
-                <label>
-                  Próxima renovación
-                  <input type="date" value={form.next_renewal_date} onChange={(event) => updateField('next_renewal_date', event.target.value)} required />
                 </label>
 
                 <label>
@@ -198,8 +217,9 @@ function LicenseWizard({ api, setError, onClose, onCreated }) {
                 <p><strong>Lote:</strong> {selectedBatch?.batch_number || '-'}</p>
                 <p><strong>Responsable:</strong> {selectedUser?.name || '-'}</p>
                 <p><strong>Licencia:</strong> {form.name || '-'}</p>
+                <p><strong>Identificador comercial:</strong> {form.commercial_identifier || '-'}</p>
                 <p><strong>Inicio:</strong> {form.start_date || '-'}</p>
-                <p><strong>Renovación:</strong> {form.next_renewal_date || '-'}</p>
+                <p><strong>Renovación:</strong> automática según la variante</p>
                 <p><strong>Costo:</strong> {form.currency_code} {form.cost || '0'}</p>
                 <p><strong>Ciclo:</strong> {form.billing_cycle === 'monthly' ? 'Mensual' : 'Anual'}</p>
               </div>

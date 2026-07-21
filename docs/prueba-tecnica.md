@@ -169,6 +169,8 @@ El código real de licencia:
 - Se cifra antes de almacenarse en `license_code_encrypted`.
 - Se hashea en `license_code_hash` para evitar duplicados.
 - Se expone como `masked_code` en respuestas.
+- El identificador comercial se almacena en `commercial_identifier` y queda visible para operación.
+- El estado de disponibilidad se consulta con `status`: disponible, reservada, activada, vencida o cancelada.
 
 El backend no devuelve el código real ni el código cifrado.
 

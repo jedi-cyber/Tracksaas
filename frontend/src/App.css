@@ -390,6 +390,17 @@ button:disabled {
   gap: 16px;
 }
 
+.guide-text {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -560,6 +571,11 @@ th {
 
 td {
   color: #1e293b;
+}
+
+.inactive-row td {
+  background: #f8fafc;
+  color: #64748b;
 }
 
 .row-actions {

@@ -302,10 +302,10 @@ Body de creación:
   "batch_id": 1,
   "responsible_user_id": 1,
   "name": "Licencia ESET 001",
+  "commercial_identifier": "ESET-ENDPOINT-001",
   "license_code": "AAAA-BBBB-CCCC-DDDD",
   "status": "available",
   "start_date": "2026-07-21",
-  "next_renewal_date": "2027-07-21",
   "cost": 10,
   "billing_cycle": "annual",
   "currency_code": "PEN",
@@ -316,7 +316,11 @@ Body de creación:
 Reglas:
 
 - `license_code` se cifra antes de almacenarse.
+- `commercial_identifier` es visible y sirve para que el usuario operativo identifique comercialmente la licencia.
 - Las respuestas devuelven `masked_code`, no el código real.
+- La disponibilidad se determina por `status`: `available`, `reserved`, `activated`, `expired` o `cancelled`.
+- `next_renewal_date` lo calcula el backend con `start_date + product_variants.duration_days`.
+- Si la variante no tiene `duration_days`, se usa 30 días para ciclo mensual y 365 para ciclo anual.
 - No se puede crear más licencias que `license_batches.quantity`.
 - `DELETE /licenses/:id` marca `status = "cancelled"` y mantiene `active = true`.
 - El estado `activated` no debe asignarse con `PUT`; se usa el endpoint dedicado.
@@ -477,7 +481,7 @@ El backend valida:
 - Montos no negativos.
 - Cantidades positivas.
 - Fechas reales en formato `YYYY-MM-DD`.
-- `next_renewal_date >= start_date`.
+- La fecha de renovación se calcula automáticamente y debe ser mayor o igual que `start_date`.
 - Monedas ISO de tres letras en mayúsculas.
 - Emails válidos.
 - Estados permitidos.

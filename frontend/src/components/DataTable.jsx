@@ -18,7 +18,10 @@ function DataTable({ rows, columns, actions }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.id}>
+            <tr
+              key={row.id}
+              className={row.active === false || row.status === 'cancelled' ? 'inactive-row' : ''}
+            >
               {columns.map(([key]) => (
                 <td key={key}>
                   {key === 'status' || key === 'alert_color' ? (

@@ -79,6 +79,7 @@ function Dashboard({ api, setError }) {
           rows={overview.upcomingRenewals}
           columns={[
             ['name', 'Licencia'],
+            ['commercial_identifier', 'Identificador comercial'],
             ['status', 'Estado'],
             ['next_renewal_date', 'Renovación'],
             ['days_remaining', 'Días'],

@@ -185,6 +185,7 @@ CREATE TABLE IF NOT EXISTS license_units (
     batch_id BIGINT NOT NULL,
     responsible_user_id BIGINT NOT NULL,
     name VARCHAR(180) NOT NULL,
+    commercial_identifier VARCHAR(180) NOT NULL,
     license_code_encrypted TEXT NOT NULL,
     license_code_hash CHAR(64) NOT NULL UNIQUE,
     masked_code VARCHAR(120) NOT NULL,
@@ -220,7 +221,15 @@ CREATE TABLE IF NOT EXISTS license_units (
         OR status <> 'activated'
     )
 );
+ALTER TABLE license_units
+    ADD COLUMN IF NOT EXISTS commercial_identifier VARCHAR(180);
+UPDATE license_units
+SET commercial_identifier = name
+WHERE commercial_identifier IS NULL;
+ALTER TABLE license_units
+    ALTER COLUMN commercial_identifier SET NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_license_units_batch_id ON license_units(batch_id);
+CREATE INDEX IF NOT EXISTS idx_license_units_commercial_identifier ON license_units(commercial_identifier);
 CREATE INDEX IF NOT EXISTS idx_license_units_responsible ON license_units(responsible_user_id);
 CREATE INDEX IF NOT EXISTS idx_license_units_status ON license_units(status);
 CREATE INDEX IF NOT EXISTS idx_license_units_next_renewal ON license_units(next_renewal_date);
@@ -272,6 +281,7 @@ CREATE OR REPLACE VIEW vw_license_alerts AS
 SELECT
     lu.id,
     lu.name,
+    lu.commercial_identifier,
     lu.status,
     lu.start_date,
     lu.next_renewal_date,
