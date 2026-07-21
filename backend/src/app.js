@@ -5,6 +5,7 @@ const morgan = require("morgan");
 
 const authRoutes = require("./routes/auth.routes");
 const batchesRoutes = require("./routes/batches.routes");
+const dashboardRoutes = require("./routes/dashboard.routes");
 const healthRoutes = require("./routes/health.routes");
 const licensesRoutes = require("./routes/licenses.routes");
 const productsRoutes = require("./routes/products.routes");
@@ -25,6 +26,7 @@ app.use("/api/products", requireAuth, productsRoutes);
 app.use("/api/variants", requireAuth, variantsRoutes);
 app.use("/api/batches", requireAuth, batchesRoutes);
 app.use("/api/licenses", requireAuth, licensesRoutes);
+app.use("/api/dashboard", requireAuth, dashboardRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
