@@ -18,7 +18,7 @@ function Dashboard({ api, setError }) {
   async function expireOverdue() {
     try {
       const body = await api.request('/licenses/expire-overdue', { method: 'POST' })
-      setError(`Licencias expiradas: ${body.data.expiredCount}`)
+      setError(`Licencias expiradas: ${body.data.expiredCount}`, 'info')
       const next = await api.request('/dashboard/overview')
       setOverview(next.data)
     } catch (err) {

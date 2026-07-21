@@ -128,8 +128,22 @@ export const tableConfig = {
 export const formConfig = {
   licenses: {
     options: [
-      { name: 'batch_id', path: '/batches?limit=100', labelKey: 'batch_number', secondaryKey: 'variant_name' },
-      { name: 'responsible_user_id', path: '/users?limit=100', labelKey: 'name', secondaryKey: 'email' },
+      {
+        name: 'batch_id',
+        path: '/batches?limit=100',
+        labelKey: 'batch_number',
+        secondaryKey: 'variant_name',
+        createModule: 'batches',
+        createLabel: 'Crear lote',
+      },
+      {
+        name: 'responsible_user_id',
+        path: '/users?limit=100',
+        labelKey: 'name',
+        secondaryKey: 'email',
+        createModule: 'users',
+        createLabel: 'Crear usuario',
+      },
     ],
     fields: [
       { name: 'batch_id', label: 'Lote', type: 'select', required: true, optionSource: 'batch_id' },
@@ -174,7 +188,15 @@ export const formConfig = {
     ],
   },
   variants: {
-    options: [{ name: 'product_id', path: '/products?limit=100', labelKey: 'name' }],
+    options: [
+      {
+        name: 'product_id',
+        path: '/products?limit=100',
+        labelKey: 'name',
+        createModule: 'products',
+        createLabel: 'Crear producto',
+      },
+    ],
     fields: [
       { name: 'product_id', label: 'Producto', type: 'select', required: true, optionSource: 'product_id' },
       { name: 'name', label: 'Variante', required: true, maxLength: 180 },
@@ -198,8 +220,21 @@ export const formConfig = {
   },
   batches: {
     options: [
-      { name: 'variant_id', path: '/variants?limit=100', labelKey: 'name', secondaryKey: 'product_name' },
-      { name: 'provider_id', path: '/providers?limit=100', labelKey: 'name' },
+      {
+        name: 'variant_id',
+        path: '/variants?limit=100',
+        labelKey: 'name',
+        secondaryKey: 'product_name',
+        createModule: 'variants',
+        createLabel: 'Crear variante',
+      },
+      {
+        name: 'provider_id',
+        path: '/providers?limit=100',
+        labelKey: 'name',
+        createModule: 'providers',
+        createLabel: 'Crear proveedor',
+      },
     ],
     fields: [
       { name: 'variant_id', label: 'Variante', type: 'select', required: true, optionSource: 'variant_id' },
@@ -246,7 +281,15 @@ export const formConfig = {
     ],
   },
   users: {
-    options: [{ name: 'role_id', path: '/roles?limit=100', labelKey: 'name' }],
+    options: [
+      {
+        name: 'role_id',
+        path: '/roles?limit=100',
+        labelKey: 'name',
+        createModule: 'roles',
+        createLabel: 'Crear rol',
+      },
+    ],
     fields: [
       { name: 'role_id', label: 'Rol', type: 'select', required: true, optionSource: 'role_id' },
       { name: 'name', label: 'Nombre', required: true, maxLength: 150 },

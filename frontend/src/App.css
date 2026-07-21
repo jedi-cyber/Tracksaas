@@ -112,6 +112,63 @@ button:disabled {
   padding: 10px 12px;
 }
 
+.notification-stack {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 80;
+  display: grid;
+  gap: 10px;
+  width: min(420px, calc(100vw - 32px));
+}
+
+.notification-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: start;
+  padding: 14px 14px 14px 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18);
+}
+
+.notification-card span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.notification-card p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.notification-error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.notification-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.08);
+  color: inherit;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.notification-close:hover {
+  background: rgba(15, 23, 42, 0.16);
+}
+
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -343,6 +400,41 @@ button:disabled {
   grid-column: 1 / -1;
 }
 
+.select-field {
+  display: grid;
+  gap: 7px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.select-field.full-span {
+  grid-column: 1 / -1;
+}
+
+.field-heading {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.field-heading span {
+  min-width: 0;
+}
+
+.inline-create-button {
+  justify-self: start;
+  padding: 7px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.field-help {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .checkbox-field {
   display: flex;
   gap: 10px;
@@ -497,6 +589,13 @@ td {
 
   .sidebar {
     position: static;
+  }
+
+  .notification-stack {
+    top: 16px;
+    right: 16px;
+    left: 16px;
+    width: auto;
   }
 
   .dashboard-grid,

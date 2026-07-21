@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Dashboard from './components/Dashboard'
 import DataModule from './components/DataModule'
 import LoginScreen from './components/LoginScreen'
+import NotificationCenter from './components/NotificationCenter'
 import { modules } from './config/modules'
 import './App.css'
 
@@ -11,7 +12,7 @@ function App() {
   const [token, setToken] = useState(() => localStorage.getItem('tracksaas_token'))
   const [user, setUser] = useState(null)
   const [activeModule, setActiveModule] = useState('dashboard')
-  const [error, setError] = useState('')
+  const [notifications, setNotifications] = useState([])
 
   const api = useMemo(() => {
     async function request(path, options = {}) {
@@ -50,11 +51,29 @@ function App() {
       })
   }, [api, token])
 
+  function notify(message, type = 'error') {
+    if (!message) return
+
+    setNotifications((current) => [
+      ...current,
+      {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        message,
+        type,
+        duration: type === 'error' ? 7000 : 5000,
+      },
+    ])
+  }
+
+  function dismissNotification(id) {
+    setNotifications((current) => current.filter((notification) => notification.id !== id))
+  }
+
   function handleLogin(nextToken, nextUser) {
     localStorage.setItem('tracksaas_token', nextToken)
     setToken(nextToken)
     setUser(nextUser)
-    setError('')
+    setNotifications([])
   }
 
   function logout() {
@@ -87,7 +106,6 @@ function App() {
               className={activeModule === module.id ? 'active' : ''}
               onClick={() => {
                 setActiveModule(module.id)
-                setError('')
               }}
             >
               {module.label}
@@ -108,15 +126,15 @@ function App() {
           </button>
         </header>
 
-        {error && <div className="error-banner">{error}</div>}
+        <NotificationCenter notifications={notifications} onDismiss={dismissNotification} />
 
         {activeModule === 'dashboard' ? (
-          <Dashboard api={api} setError={setError} />
+          <Dashboard api={api} setError={notify} />
         ) : (
           <DataModule
             api={api}
             moduleId={activeModule}
-            setError={setError}
+            setError={notify}
             user={user}
           />
         )}

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { formConfig, tableConfig } from '../config/modules'
+import EntityModal from './EntityModal'
 import Modal from './Modal'
 
 function LicenseWizard({ api, setError, onClose, onCreated }) {
@@ -6,6 +8,7 @@ function LicenseWizard({ api, setError, onClose, onCreated }) {
   const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
   const [loadingOptions, setLoadingOptions] = useState(true)
+  const [showBatchModal, setShowBatchModal] = useState(false)
   const [batches, setBatches] = useState([])
   const [users, setUsers] = useState([])
   const [form, setForm] = useState({
@@ -21,18 +24,19 @@ function LicenseWizard({ api, setError, onClose, onCreated }) {
     notes: '',
   })
 
-  useEffect(() => {
+  async function loadOptions() {
     setLoadingOptions(true)
-    Promise.all([
-      api.request('/batches?limit=100'),
-      api.request('/users?limit=100'),
-    ])
+    return Promise.all([api.request('/batches?limit=100'), api.request('/users?limit=100')])
       .then(([batchBody, userBody]) => {
         setBatches(batchBody.data || [])
         setUsers(userBody.data || [])
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoadingOptions(false))
+  }
+
+  useEffect(() => {
+    loadOptions()
   }, [api, setError])
 
   function updateField(field, value) {
@@ -110,17 +114,23 @@ function LicenseWizard({ api, setError, onClose, onCreated }) {
           <>
             {step === 1 && (
               <div className="wizard-grid">
-                <label>
-                  Lote
+                <div className="select-field">
+                  <div className="field-heading">
+                    <span>Lote</span>
+                    <button type="button" className="secondary-button inline-create-button" onClick={() => setShowBatchModal(true)}>
+                      Crear lote
+                    </button>
+                  </div>
                   <select value={form.batch_id} onChange={(event) => updateField('batch_id', event.target.value)} required>
                     <option value="">Seleccionar lote</option>
                     {batches.map((batch) => (
                       <option key={batch.id} value={batch.id}>
-                        {batch.batch_number} · {batch.variant_name || batch.product_name || 'sin variante'}
+                        {batch.batch_number || 'Sin número'} · {batch.variant_name || batch.product_name || 'sin variante'}
                       </option>
                     ))}
                   </select>
-                </label>
+                  <span className="field-help">Si no existe, créalo sin salir de este formulario.</span>
+                </div>
 
                 <label>
                   Responsable
@@ -217,6 +227,22 @@ function LicenseWizard({ api, setError, onClose, onCreated }) {
           )}
         </div>
       </form>
+
+      {showBatchModal && (
+        <EntityModal
+          api={api}
+          config={tableConfig.batches}
+          formConfig={formConfig.batches}
+          mode="create"
+          row={null}
+          setError={setError}
+          onClose={() => setShowBatchModal(false)}
+          onSaved={async () => {
+            setShowBatchModal(false)
+            await loadOptions()
+          }}
+        />
+      )}
     </Modal>
   )
 }
