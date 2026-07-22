@@ -1,12 +1,9 @@
 const pool = require("../config/database");
 const { getPagination, paginatedResponse } = require("../utils/pagination");
-const { ensureLicenseSalePriceColumn } = require("../utils/schemaMigrations");
 
 const ALERT_COLORS = new Set(["green", "yellow", "red"]);
 
 async function getFinancialDashboard() {
-  await ensureLicenseSalePriceColumn();
-
   const { rows } = await pool.query(
     `
       SELECT

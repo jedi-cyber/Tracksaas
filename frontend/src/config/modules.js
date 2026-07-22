@@ -69,7 +69,7 @@ export const tableConfig = {
       ['name', 'Variante'],
       ['default_code', 'Código'],
       ['billing_cycle', 'Ciclo'],
-      ['default_cost', 'Costo'],
+      ['default_cost', 'Costo ref.'],
     ],
   },
   customers: {
@@ -241,8 +241,22 @@ export const formConfig = {
 	        disabledOnEditWhen: { status: 'activated' },
 	        showWhen: { validity_start_mode: 'first_activation' },
 	      },
-	      { name: 'cost', label: 'Costo de adquisición', type: 'number', min: 0, step: '0.01', required: true },
-	      { name: 'sale_price', label: 'Precio de venta', type: 'number', min: 0, step: '0.01' },
+	      {
+	        name: 'cost',
+	        label: 'Costo de adquisición',
+	        type: 'number',
+	        min: 0,
+	        step: '0.01',
+	        help: 'Costo interno de compra. Si queda vacío al crear, se toma el costo unitario del lote.',
+	      },
+	      {
+	        name: 'sale_price',
+	        label: 'Precio de venta',
+	        type: 'number',
+	        min: 0,
+	        step: '0.01',
+	        help: 'Valor comercial de venta. No se confunde con el costo de adquisición.',
+	      },
       {
         name: 'billing_cycle',
         label: 'Ciclo',
@@ -267,7 +281,7 @@ export const formConfig = {
     ],
   },
   variants: {
-    guideText: 'Una variante pertenece a un producto. Define su ciclo, costo y duración antes de crear lotes.',
+    guideText: 'Una variante pertenece a un producto. Define su ciclo, duración y costo de referencia para crear lotes más rápido.',
     options: [
       {
         name: 'product_id',
@@ -293,7 +307,15 @@ export const formConfig = {
         defaultValue: 'annual',
       },
       { name: 'duration_days', label: 'Duración en días', type: 'number', min: 1 },
-      { name: 'default_cost', label: 'Costo por defecto', type: 'number', min: 0, step: '0.01', defaultValue: 0 },
+      {
+        name: 'default_cost',
+        label: 'Costo de referencia',
+        type: 'number',
+        min: 0,
+        step: '0.01',
+        defaultValue: 0,
+        help: 'Se usará como costo unitario del lote cuando lo dejes vacío.',
+      },
       { name: 'currency_code', label: 'Moneda', maxLength: 3, defaultValue: 'PEN', transform: 'uppercase' },
       { name: 'active', label: 'Activo', type: 'checkbox', defaultValue: true },
     ],
@@ -329,7 +351,14 @@ export const formConfig = {
       },
       { name: 'purchase_date', label: 'Fecha de compra', type: 'date', required: true },
       { name: 'quantity', label: 'Cantidad', type: 'number', min: 1, required: true },
-      { name: 'unit_cost', label: 'Costo unitario', type: 'number', min: 0, step: '0.01', required: true },
+      {
+        name: 'unit_cost',
+        label: 'Costo unitario',
+        type: 'number',
+        min: 0,
+        step: '0.01',
+        help: 'Déjalo vacío para usar el costo de referencia de la variante.',
+      },
       { name: 'currency_code', label: 'Moneda', maxLength: 3, defaultValue: 'PEN', transform: 'uppercase' },
       {
         name: 'status',

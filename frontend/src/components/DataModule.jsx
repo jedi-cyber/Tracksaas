@@ -6,16 +6,28 @@ import LicenseDetailModal from './LicenseDetailModal'
 import LicenseWizard from './LicenseWizard'
 import ReasonModal from './ReasonModal'
 import { formConfig, rolePermissions, tableConfig } from '../config/modules'
+import { formatValue } from '../utils/formatters'
+
+const EMPTY_FILTERS = {
+  productId: '',
+  providerId: '',
+  status: '',
+  responsibleUserId: '',
+  due: '',
+}
 
 function DataModule({ api, moduleId, setError, user }) {
   const config = tableConfig[moduleId]
   const isLicenseModule = ['licenses', 'expiredLicenses'].includes(moduleId)
   const isLicenseDetailModule = ['licenses', 'activations', 'expiredLicenses'].includes(moduleId)
+  const hasOperationalFilters = ['licenses', 'activations', 'expiredLicenses'].includes(moduleId)
   const entityForm = formConfig[moduleId] || (isLicenseModule ? formConfig.licenses : null)
 	  const [rows, setRows] = useState([])
   const [pagination, setPagination] = useState(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [filters, setFilters] = useState(EMPTY_FILTERS)
+  const [filterOptions, setFilterOptions] = useState({ products: [], providers: [], users: [] })
   const [showLicenseWizard, setShowLicenseWizard] = useState(false)
   const [licenseWizardInitialValues, setLicenseWizardInitialValues] = useState({})
   const [formMode, setFormMode] = useState(null)
@@ -31,15 +43,46 @@ function DataModule({ api, moduleId, setError, user }) {
   const canUpdateLicense = licensePermissions.includes('update')
   const canCreateLicense = moduleId === 'licenses' && permissions.includes('create')
 
-  async function load(searchOverride) {
+  async function loadFilterOptions() {
+    if (!hasOperationalFilters) return
+
+    try {
+      const [productsBody, providersBody, usersBody] = await Promise.all([
+        api.request('/products?limit=100'),
+        api.request('/providers?limit=100'),
+        api.request('/users?limit=100'),
+      ])
+      setFilterOptions({
+        products: productsBody.data || [],
+        providers: providersBody.data || [],
+        users: usersBody.data || [],
+      })
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  function buildFilterQuery(nextFilters = filters) {
+    const params = new URLSearchParams()
+    Object.entries(nextFilters).forEach(([key, value]) => {
+      if (!value) return
+      params.set(key, value)
+    })
+    const query = params.toString()
+    return query ? `&${query}` : ''
+  }
+
+  async function load(searchOverride, filtersOverride) {
     if (!config) return
     setLoading(true)
 	    try {
 	      const limit = ['licenses', 'activations', 'expiredLicenses'].includes(moduleId) ? 100 : 25
-	      const effectiveSearch = searchOverride !== undefined ? searchOverride : searchTerm
-	      const searchQuery = effectiveSearch.trim() ? `&search=${encodeURIComponent(effectiveSearch.trim())}` : ''
+	      const effectiveSearch = typeof searchOverride === 'string' ? searchOverride : searchTerm
+      const normalizedSearch = String(effectiveSearch || '').trim()
+	      const searchQuery = normalizedSearch ? `&search=${encodeURIComponent(normalizedSearch)}` : ''
       const fixedQuery = config.fixedQuery ? `&${config.fixedQuery}` : ''
-	      const body = await api.request(`${config.path}?limit=${limit}&includeInactive=true${fixedQuery}${searchQuery}`)
+      const filterQuery = hasOperationalFilters ? buildFilterQuery(filtersOverride || filters) : ''
+	      const body = await api.request(`${config.path}?limit=${limit}&includeInactive=true${fixedQuery}${filterQuery}${searchQuery}`)
 	      const nextRows = moduleId === 'licenses'
 	        ? (body.data || []).filter((row) => ['available', 'reserved'].includes(row.status))
 	        : body.data || []
@@ -62,8 +105,20 @@ function DataModule({ api, moduleId, setError, user }) {
     setGuidedModal(null)
     setReasonAction(null)
     setSearchTerm('')
-    load('')
-  }, [config?.path])
+    setFilters(EMPTY_FILTERS)
+    loadFilterOptions()
+    load('', EMPTY_FILTERS)
+  }, [config?.path, moduleId])
+
+  function updateFilter(field, value) {
+    setFilters((current) => ({ ...current, [field]: value }))
+  }
+
+  function clearFilters() {
+    setFilters(EMPTY_FILTERS)
+    setSearchTerm('')
+    load('', EMPTY_FILTERS)
+  }
 
   async function licenseAction(id, action) {
     if (action === 'mark-expired') {
@@ -380,6 +435,82 @@ function DataModule({ api, moduleId, setError, user }) {
     )
   }
 
+  function renderOperationalFilters() {
+    if (!hasOperationalFilters) return null
+
+    const statusOptions = moduleId === 'licenses'
+      ? ['available', 'reserved']
+      : moduleId === 'expiredLicenses'
+        ? []
+        : ['activated', 'expired']
+
+    return (
+      <div className="operational-filters" aria-label="Filtros operativos">
+        <label>
+          Producto
+          <select value={filters.productId} onChange={(event) => updateFilter('productId', event.target.value)}>
+            <option value="">Todos</option>
+            {filterOptions.products.map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Proveedor
+          <select value={filters.providerId} onChange={(event) => updateFilter('providerId', event.target.value)}>
+            <option value="">Todos</option>
+            {filterOptions.providers.map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </select>
+        </label>
+
+        {statusOptions.length > 0 && (
+          <label>
+            Estado
+            <select value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}>
+              <option value="">Todos</option>
+              {statusOptions.map((status) => (
+                <option key={status} value={status}>{formatValue(status)}</option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        <label>
+          Responsable
+          <select value={filters.responsibleUserId} onChange={(event) => updateFilter('responsibleUserId', event.target.value)}>
+            <option value="">Todos</option>
+            {filterOptions.users.map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Vencimiento
+          <select value={filters.due} onChange={(event) => updateFilter('due', event.target.value)}>
+            <option value="">Todos</option>
+            <option value="overdue">Vencidas</option>
+            <option value="next30">Próximos 30 días</option>
+            <option value="over30">Más de 30 días</option>
+            <option value="no_date">Sin fecha</option>
+          </select>
+        </label>
+
+        <div className="filter-actions">
+          <button type="button" onClick={() => load()}>
+            Aplicar filtros
+          </button>
+          <button type="button" className="secondary-button" onClick={clearFilters}>
+            Limpiar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (!config) return null
 
   return (
@@ -420,11 +551,13 @@ function DataModule({ api, moduleId, setError, user }) {
               Registrar licencia
             </button>
           )}
-          <button type="button" className="secondary-button" onClick={load}>
+          <button type="button" className="secondary-button" onClick={() => load()}>
             {searchTerm.trim() ? 'Buscar' : 'Actualizar'}
           </button>
         </div>
       </div>
+
+      {renderOperationalFilters()}
 
       {renderModuleSummary()}
 

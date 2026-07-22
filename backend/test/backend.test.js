@@ -397,6 +397,28 @@ describe("TrackSaaS backend", () => {
     );
   });
 
+  test("licencia usa costo unitario del lote cuando no envía costo de adquisición", async () => {
+    const batch = await createBatchFixture("LICENSE-BATCH-COST", "confirmed");
+
+    const license = await licensesService.createLicense(
+      {
+        batch_id: batch.id,
+        responsible_user_id: adminUserId,
+        name: `${TEST_PREFIX}-LICENSE-BATCH-COST`,
+        commercial_identifier: makeCommercialIdentifier(),
+        license_code: makeLicenseCode(),
+        validity_start_mode: "purchase_date",
+        start_date: "2026-07-21",
+        billing_cycle: "annual",
+      },
+      adminUserId,
+      "127.0.0.1"
+    );
+
+    assert.equal(Number(license.cost), 10);
+    assert.equal(Number(license.sale_price), 10);
+  });
+
   test("genera código de lote automáticamente cuando no se envía", async () => {
     const providerId = await getProviderId();
     const product = await request("/api/products", {
@@ -440,6 +462,50 @@ describe("TrackSaaS backend", () => {
 
     assert.equal(batch.response.status, 201);
     assert.match(batch.body.data.batch_number, /^LOT-2026-\d{4}$/);
+  });
+
+  test("usa costo de referencia de variante cuando lote no envía costo unitario", async () => {
+    const providerId = await getProviderId();
+    const product = await request("/api/products", {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        name: `${TEST_PREFIX}-PRODUCT-BATCH-DEFAULT-COST`,
+        description: "Producto para costo de referencia",
+      }),
+    });
+    assert.equal(product.response.status, 201);
+
+    const variant = await request("/api/variants", {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        product_id: product.body.data.id,
+        name: `${TEST_PREFIX}-VARIANT-BATCH-DEFAULT-COST`,
+        default_code: `VAR-DEFAULT-COST-${Date.now()}`,
+        billing_cycle: "annual",
+        duration_days: 365,
+        default_cost: 18,
+        currency_code: "PEN",
+      }),
+    });
+    assert.equal(variant.response.status, 201);
+
+    const batch = await request("/api/batches", {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        variant_id: variant.body.data.id,
+        provider_id: providerId,
+        purchase_date: "2026-07-22",
+        quantity: 2,
+        currency_code: "PEN",
+        status: "confirmed",
+      }),
+    });
+
+    assert.equal(batch.response.status, 201);
+    assert.equal(Number(batch.body.data.unit_cost), 18);
   });
 
   test("lotes devuelven disponibilidad real por estado de licencia", async () => {

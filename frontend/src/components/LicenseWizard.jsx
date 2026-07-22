@@ -24,6 +24,7 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
     validity_start_mode: 'purchase_date',
     start_date: today,
     redeem_deadline_date: '',
+    cost_source: 'batch',
 	    cost: '',
     sale_price: '',
 	    billing_cycle: 'annual',
@@ -53,6 +54,17 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
   }, [api, setError])
 
   function updateField(field, value) {
+    if (field === 'batch_id') {
+      const batch = batches.find((item) => String(item.id) === String(value))
+      setForm((current) => ({
+        ...current,
+        batch_id: value,
+        billing_cycle: batch?.variant_billing_cycle || current.billing_cycle,
+        currency_code: batch?.currency_code || current.currency_code,
+      }))
+      return
+    }
+
     if (field === 'validity_start_mode') {
       setForm((current) => ({
         ...current,
@@ -77,7 +89,11 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
       )
     }
 
-    return (form.validity_start_mode === 'first_activation' || form.start_date) && form.cost && form.billing_cycle
+    return (
+      (form.validity_start_mode === 'first_activation' || form.start_date) &&
+      form.billing_cycle &&
+      (form.cost_source !== 'manual' || form.cost)
+    )
   }
 
   const selectedBatch = batches.find((batch) => String(batch.id) === String(form.batch_id))
@@ -128,6 +144,10 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
     return `${product}${variant} · ${formatDuration(batch)} · ${provider} · ${availability} (${registered}/${quantity})`
   }
 
+  function effectiveAcquisitionCost() {
+    return form.cost_source === 'manual' ? form.cost : selectedBatch?.unit_cost
+  }
+
   function nextStep() {
     if (!validateStep()) {
       setError('Completa los campos obligatorios antes de continuar.')
@@ -173,8 +193,8 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
           redeem_deadline_date: isFirstActivation ? form.redeem_deadline_date : '',
           batch_id: Number(form.batch_id),
           responsible_user_id: Number(form.responsible_user_id),
-	          cost: Number(form.cost),
-          sale_price: form.sale_price === '' ? Number(form.cost) : Number(form.sale_price),
+	          cost: form.cost_source === 'manual' && form.cost !== '' ? Number(form.cost) : '',
+          sale_price: form.sale_price === '' ? '' : Number(form.sale_price),
 	          next_renewal_date: isFirstActivation ? '' : calculateRenewalDate(),
         }),
       })
@@ -337,14 +357,33 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
 		                  </label>
 		                )}
 	
-		                <label>
-		                  Costo de adquisición
+                <label>
+                  Costo de adquisición
+                  <select value={form.cost_source} onChange={(event) => updateField('cost_source', event.target.value)} required>
+                    <option value="batch">Usar costo del lote</option>
+                    <option value="manual">Ingresar costo manual</option>
+                  </select>
+                  <span className="field-help">
+                    {form.cost_source === 'batch'
+                      ? `Se usará el costo unitario del lote: ${form.currency_code} ${selectedBatch?.unit_cost || '0.00'}.`
+                      : 'Usa esta opción solo si esta licencia tuvo un costo distinto al del lote.'}
+                  </span>
+                </label>
+
+                {form.cost_source === 'manual' && (
+                  <label>
+                    Costo manual de adquisición
 	                  <input type="number" min="0" step="0.01" value={form.cost} onChange={(event) => updateField('cost', event.target.value)} required />
+                    <span className="field-help">
+                      Costo interno de compra de esta licencia. No es el precio de venta.
+                    </span>
 	                </label>
+                )}
 
 	                <label>
 	                  Precio de venta
 	                  <input type="number" min="0" step="0.01" value={form.sale_price} onChange={(event) => updateField('sale_price', event.target.value)} placeholder="Si queda vacío, usa el costo" />
+                    <span className="field-help">No es costo de compra. Se usa para ingresos y margen estimado.</span>
 	                </label>
 
                 <label>
@@ -381,8 +420,8 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
                 ) : (
                   <p><strong>Fecha límite de canje:</strong> {formatDate(form.redeem_deadline_date)}</p>
                 )}
-	                <p><strong>Costo:</strong> {form.currency_code} {form.cost || '0'}</p>
-	                <p><strong>Precio de venta:</strong> {form.currency_code} {form.sale_price || form.cost || '0'}</p>
+	                <p><strong>Costo de adquisición:</strong> {form.currency_code} {effectiveAcquisitionCost() || '0'} {form.cost_source === 'batch' ? '(tomado del lote)' : '(manual)'}</p>
+	                <p><strong>Precio de venta:</strong> {form.currency_code} {form.sale_price || effectiveAcquisitionCost() || '0'}</p>
                 <p><strong>Ciclo:</strong> {form.billing_cycle === 'monthly' ? 'Mensual' : 'Anual'}</p>
               </div>
             )}

@@ -356,12 +356,87 @@ button:disabled {
   gap: 16px;
 }
 
+.dashboard-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.45fr);
+  gap: 18px;
+  align-items: stretch;
+  padding: 22px;
+  border: 1px solid #cdd8e6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.dashboard-hero h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.dashboard-hero p {
+  max-width: 780px;
+  margin: 10px 0 0;
+  color: #475569;
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 600;
+}
+
+.dashboard-hero-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dashboard-hero-kpis div {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #dce3ee;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.dashboard-hero-kpis span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dashboard-hero-kpis strong {
+  color: #0f172a;
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+
 .metric,
 .content-block {
   background: #ffffff;
   border: 1px solid #dce3ee;
   border-radius: 8px;
   padding: 18px;
+}
+
+.metric {
+  border-top: 4px solid #dce3ee;
+}
+
+.metric-primary {
+  border-top-color: #1769aa;
+}
+
+.metric-warning {
+  border-top-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.metric-danger {
+  border-top-color: #dc2626;
+  background: #fef2f2;
 }
 
 .metric span {
@@ -421,6 +496,36 @@ button:disabled {
   font-size: 20px;
 }
 
+.finance-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.finance-highlight {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.finance-highlight span {
+  color: #1e40af;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.finance-highlight strong {
+  display: block;
+  margin-top: 8px;
+  color: #0f172a;
+  font-size: 24px;
+  overflow-wrap: anywhere;
+}
+
 .alert-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -463,6 +568,41 @@ button:disabled {
 .module-search {
   width: min(260px, 100%);
   padding: 10px 12px;
+}
+
+.operational-filters {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.operational-filters label {
+  gap: 6px;
+  min-width: 0;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.operational-filters select {
+  min-height: 40px;
+  padding: 9px 10px;
+  font-size: 14px;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-actions button {
+  white-space: nowrap;
 }
 
 .module-summary {
@@ -692,6 +832,37 @@ button:disabled {
   font-size: 15px;
 }
 
+.important-reason {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid #fecaca;
+  border-left: 5px solid #dc2626;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #7f1d1d;
+}
+
+.important-reason span {
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.important-reason strong {
+  color: #991b1b;
+  font-size: 16px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.important-reason p {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .muted-text {
   margin: 0;
   color: #64748b;
@@ -907,6 +1078,8 @@ td {
   }
 
   .dashboard-grid,
+  .dashboard-hero,
+  .dashboard-hero-kpis,
   .status-grid {
     grid-template-columns: 1fr;
   }
@@ -921,12 +1094,14 @@ td {
   }
 
   .header-actions,
+  .filter-actions,
   .wizard-actions,
   .form-actions {
     justify-content: stretch;
   }
 
   .header-actions button,
+  .filter-actions button,
   .wizard-actions button,
   .form-actions button {
     width: 100%;
@@ -937,7 +1112,9 @@ td {
   .review-list,
   .form-grid,
   .module-summary,
+  .operational-filters,
   .summary-list.compact,
+  .finance-summary,
   .alert-summary,
   .detail-grid {
     grid-template-columns: 1fr;

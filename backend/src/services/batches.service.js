@@ -16,7 +16,7 @@ const {
 const BATCH_STATUSES = ["draft", "confirmed", "cancelled"];
 
 function validateBatch(payload, partial = false) {
-  const required = ["variant_id", "provider_id", "purchase_date", "quantity", "unit_cost"];
+  const required = ["variant_id", "provider_id", "purchase_date", "quantity"];
 
   if (!partial) {
     required.forEach((field) => {
@@ -161,6 +161,20 @@ async function createBatch(payload, userId, ipAddress) {
 
   try {
     await client.query("BEGIN");
+    const variantResult = await client.query(
+      "SELECT default_cost FROM product_variants WHERE id = $1 AND active = TRUE",
+      [payload.variant_id]
+    );
+
+    if (!variantResult.rows[0]) {
+      throw apiError("Variante no encontrada", 404);
+    }
+
+    const unitCost =
+      payload.unit_cost === undefined || payload.unit_cost === null || payload.unit_cost === ""
+        ? variantResult.rows[0].default_cost
+        : payload.unit_cost;
+
     const batchNumber =
       payload.batch_number && String(payload.batch_number).trim()
         ? String(payload.batch_number).trim()
@@ -191,7 +205,7 @@ async function createBatch(payload, userId, ipAddress) {
         batchNumber,
         payload.purchase_date,
         payload.quantity,
-        payload.unit_cost,
+        unitCost,
         payload.currency_code || null,
         payload.status || null,
         payload.notes || null,

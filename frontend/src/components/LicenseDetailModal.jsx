@@ -17,7 +17,7 @@ function LicenseDetailModal({ api, license, setError, onClose }) {
         const [licenseBody, activationBody, auditBody] = await Promise.all([
           api.request(`/licenses/${license.id}`),
           api.request(`/activations?licenseUnitId=${license.id}&limit=1`),
-          api.request(`/audit-logs?entityName=license_units&entityId=${license.id}&limit=5`),
+          api.request(`/audit-logs?entityName=license_units&entityId=${license.id}&limit=20`),
         ])
 
         if (ignore) return
@@ -40,6 +40,7 @@ function LicenseDetailModal({ api, license, setError, onClose }) {
 
   const current = detail || license
   const operationalEvents = buildOperationalEvents(auditLogs, activation, current)
+  const importantReason = findImportantReason(auditLogs, current)
   const mainResponsibility = {
     registeredBy: current.created_by_name || findEventUser(auditLogs, 'create'),
     reservedBy: findEventUser(auditLogs, 'reserve'),
@@ -53,6 +54,20 @@ function LicenseDetailModal({ api, license, setError, onClose }) {
         <p>Cargando ficha...</p>
       ) : (
         <div className="license-sheet">
+          {importantReason && (
+            <div className={`important-reason important-reason-${current.status}`}>
+              <span>
+                {current.status === 'cancelled' ? 'Motivo de cancelación' : 'Motivo de expiración'}
+              </span>
+              <strong>{importantReason.reason}</strong>
+              {(importantReason.userName || importantReason.date) && (
+                <p>
+                  Registrado por {importantReason.userName || 'Sistema'} · {formatDateTime(importantReason.date)}
+                </p>
+              )}
+            </div>
+          )}
+
           <section>
             <h4>Identificación</h4>
             <div className="detail-grid">
@@ -219,6 +234,53 @@ function findExpiredBy(auditLogs) {
   })
 
   return row?.user_name || ''
+}
+
+function findImportantReason(auditLogs, license) {
+  if (!['expired', 'cancelled'].includes(license?.status)) return null
+
+  const reasonRow = auditLogs.find((item) => {
+    const operation = item.new_values?.operation
+    const previousStatus = item.old_values?.status || item.old_values?.license?.status
+    const nextStatus = item.new_values?.license?.status || item.new_values?.status
+    const matchesOperation = ['mark_expired', 'expire_overdue', 'cancel'].includes(operation)
+    const matchesStatus = nextStatus === license.status && previousStatus !== nextStatus
+    return item.new_values?.reason && (matchesOperation || matchesStatus)
+  })
+
+  if (reasonRow) {
+    return {
+      reason: reasonRow.new_values.reason,
+      userName: reasonRow.user_name,
+      date: reasonRow.created_at,
+    }
+  }
+
+  const statusRow = auditLogs.find((item) => {
+    const operation = item.new_values?.operation
+    const previousStatus = item.old_values?.status || item.old_values?.license?.status
+    const nextStatus = item.new_values?.license?.status || item.new_values?.status
+    return ['mark_expired', 'expire_overdue', 'cancel'].includes(operation)
+      || (nextStatus === license.status && previousStatus !== nextStatus)
+  })
+
+  if (license.notes) {
+    return {
+      reason: license.notes,
+      userName: statusRow?.user_name,
+      date: statusRow?.created_at,
+    }
+  }
+
+  if (statusRow?.new_values?.reason) {
+    return {
+      reason: statusRow.new_values.reason,
+      userName: statusRow.user_name,
+      date: statusRow.created_at,
+    }
+  }
+
+  return null
 }
 
 function DetailItem({ label, value }) {

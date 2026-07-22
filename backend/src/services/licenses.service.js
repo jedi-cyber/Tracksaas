@@ -18,7 +18,6 @@ const {
   validatePositiveInteger,
   validateString,
 } = require("../utils/validators");
-const { ensureLicenseSalePriceColumn } = require("../utils/schemaMigrations");
 
 const LICENSE_STATUSES = ["available", "reserved", "activated", "expired", "cancelled"];
 const BILLING_CYCLES = ["monthly", "annual"];
@@ -53,7 +52,6 @@ function validateLicense(payload, partial = false) {
     "responsible_user_id",
     "name",
     "license_code",
-    "cost",
   ];
 
   if (!partial) {
@@ -199,13 +197,14 @@ function publicActivation(row) {
 }
 
 async function listLicenses(query) {
-  await ensureLicenseSalePriceColumn();
-
   const { page, limit, offset } = getPagination(query);
   const includeInactive = query.includeInactive === "true";
   const status = query.status || null;
   const batchId = query.batchId || null;
+  const productId = query.productId || null;
+  const providerId = query.providerId || null;
   const responsibleUserId = query.responsibleUserId || null;
+  const due = ["overdue", "next30", "over30", "no_date"].includes(query.due) ? query.due : null;
   const search = query.search ? `%${query.search.trim()}%` : null;
 
   const { rows } = await pool.query(
@@ -257,12 +256,21 @@ async function listLicenses(query) {
       WHERE ($1::BOOLEAN = TRUE OR lu.active = TRUE)
         AND ($2::TEXT IS NULL OR lu.status = $2)
         AND ($3::BIGINT IS NULL OR lu.batch_id = $3)
-        AND ($4::BIGINT IS NULL OR lu.responsible_user_id = $4)
+        AND ($4::BIGINT IS NULL OR p.id = $4)
+        AND ($5::BIGINT IS NULL OR pr.id = $5)
+        AND ($6::BIGINT IS NULL OR lu.responsible_user_id = $6)
         AND (
-          $5::TEXT IS NULL
-          OR lu.name ILIKE $5
-          OR lu.commercial_identifier ILIKE $5
-          OR lu.masked_code ILIKE $5
+          $7::TEXT IS NULL
+          OR ($7 = 'overdue' AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) < CURRENT_DATE)
+          OR ($7 = 'next30' AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) >= CURRENT_DATE AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) <= CURRENT_DATE + INTERVAL '30 days')
+          OR ($7 = 'over30' AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) > CURRENT_DATE + INTERVAL '30 days')
+          OR ($7 = 'no_date' AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) IS NULL)
+        )
+        AND (
+          $8::TEXT IS NULL
+          OR lu.name ILIKE $8
+          OR lu.commercial_identifier ILIKE $8
+          OR lu.masked_code ILIKE $8
         )
       ORDER BY
         CASE
@@ -272,17 +280,15 @@ async function listLicenses(query) {
         COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lb.purchase_date) ASC,
         lb.purchase_date ASC,
         lu.id ASC
-      LIMIT $6 OFFSET $7
+      LIMIT $9 OFFSET $10
     `,
-    [includeInactive, status, batchId, responsibleUserId, search, limit, offset]
+    [includeInactive, status, batchId, productId, providerId, responsibleUserId, due, search, limit, offset]
   );
 
   return paginatedResponse(rows, page, limit);
 }
 
 async function getLicense(id) {
-  await ensureLicenseSalePriceColumn();
-
   const { rows } = await pool.query(
     `
       SELECT
@@ -341,8 +347,6 @@ async function getLicense(id) {
 }
 
 async function createLicense(payload, userId, ipAddress) {
-  await ensureLicenseSalePriceColumn();
-
   validateLicense(payload);
   const normalizedLicenseCode = String(payload.license_code).trim().toUpperCase();
   const encryptedCode = encryptLicenseCode(normalizedLicenseCode);
@@ -355,7 +359,7 @@ async function createLicense(payload, userId, ipAddress) {
 
     const batchCapacity = await client.query(
       `
-        SELECT lb.id, lb.quantity, lb.status, pv.billing_cycle, pv.duration_days
+        SELECT lb.id, lb.quantity, lb.status, lb.unit_cost, pv.billing_cycle, pv.duration_days
         FROM license_batches lb
         JOIN product_variants pv ON pv.id = lb.variant_id
         WHERE lb.id = $1
@@ -375,6 +379,10 @@ async function createLicense(payload, userId, ipAddress) {
     }
 
     const billingCycle = payload.billing_cycle || batch.billing_cycle;
+    const licenseCost =
+      payload.cost === undefined || payload.cost === null || payload.cost === ""
+        ? batch.unit_cost
+        : payload.cost;
     const durationDays = batch.duration_days || fallbackDurationDays(billingCycle);
     const validityStartMode = payload.validity_start_mode || "purchase_date";
     const nextRenewalDate =
@@ -453,7 +461,7 @@ async function createLicense(payload, userId, ipAddress) {
         payload.redeem_deadline_date || null,
 	        payload.activation_date || null,
 	        finalExpirationDate,
-	        payload.cost,
+	        licenseCost,
         payload.sale_price,
 	        billingCycle,
 	        payload.currency_code || null,
@@ -485,8 +493,6 @@ async function createLicense(payload, userId, ipAddress) {
 }
 
 async function updateLicense(id, payload, userId, ipAddress) {
-  await ensureLicenseSalePriceColumn();
-
   validateLicense(payload, true);
 
   if (payload.status === "activated") {
