@@ -80,6 +80,10 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
 
   const selectedBatch = batches.find((batch) => String(batch.id) === String(form.batch_id))
   const selectedUser = users.find((item) => String(item.id) === String(form.responsible_user_id))
+  const registerableBatches = batches.filter((batch) => {
+    if (String(batch.id) === String(form.batch_id)) return true
+    return batch.active !== false && batch.status === 'confirmed' && Number(batch.available_to_register) > 0
+  })
 
   function getRenewalDurationDays() {
     return Number(selectedBatch?.variant_duration_days) || (form.billing_cycle === 'monthly' ? 30 : 365)
@@ -96,6 +100,30 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
     if (!value) return '-'
     const [year, month, day] = value.split('-')
     return `${day}/${month}/${year}`
+  }
+
+  function formatDuration(batch) {
+    const days = Number(batch?.variant_duration_days)
+    if (days === 365) return '1 año'
+    if (days === 30) return '1 mes'
+    if (days > 0) return `${days} días`
+    if (batch?.variant_billing_cycle === 'monthly') return '1 mes'
+    if (batch?.variant_billing_cycle === 'annual') return '1 año'
+    return 'vigencia según variante'
+  }
+
+  function formatBatchOption(batch) {
+    const product = batch.product_name || 'Producto sin nombre'
+    const variant = batch.variant_name ? ` ${batch.variant_name}` : ''
+    const provider = batch.provider_name || 'Proveedor sin nombre'
+    const available = Number(batch.available_to_register)
+    const registered = Number(batch.registered_licenses) || 0
+    const quantity = Number(batch.quantity) || 0
+    const availability = Number.isFinite(available)
+      ? `${available} disponibles para registrar`
+      : `${registered}/${quantity} registradas`
+
+    return `${product}${variant} · ${formatDuration(batch)} · ${provider} · ${availability} (${registered}/${quantity})`
   }
 
   function nextStep() {
@@ -191,14 +219,14 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
                   </div>
                   <select value={form.batch_id} onChange={(event) => updateField('batch_id', event.target.value)} required>
                     <option value="">Seleccionar lote</option>
-                    {batches.map((batch) => (
-                      <option key={batch.id} value={batch.id}>
-                        {batch.batch_number || 'Sin número'} · {batch.variant_name || batch.product_name || 'sin variante'}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="field-help">Si no existe, créalo sin salir de este formulario.</span>
-                </div>
+	                    {registerableBatches.map((batch) => (
+	                      <option key={batch.id} value={batch.id}>
+	                        {formatBatchOption(batch)}
+	                      </option>
+	                    ))}
+	                  </select>
+	                  <span className="field-help">Solo se muestran lotes confirmados y con cupo disponible. Si no existe, créalo sin salir de este formulario.</span>
+	                </div>
 
 	                <label>
 	                  Custodio inicial
@@ -321,7 +349,7 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
 
             {step === 3 && (
               <div className="review-list">
-                <p><strong>Lote:</strong> {selectedBatch?.batch_number || '-'}</p>
+	                <p><strong>Lote:</strong> {selectedBatch ? formatBatchOption(selectedBatch) : '-'}</p>
                 <p><strong>Custodio inicial:</strong> {selectedUser?.name || '-'}</p>
                 <p><strong>Licencia:</strong> {form.name || '-'}</p>
                 <p><strong>ID comercial público:</strong> {form.commercial_identifier || '-'}</p>

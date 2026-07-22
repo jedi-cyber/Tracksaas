@@ -16,7 +16,7 @@ const {
 const BATCH_STATUSES = ["draft", "confirmed", "cancelled"];
 
 function validateBatch(payload, partial = false) {
-  const required = ["variant_id", "provider_id", "batch_number", "purchase_date", "quantity", "unit_cost"];
+  const required = ["variant_id", "provider_id", "purchase_date", "quantity", "unit_cost"];
 
   if (!partial) {
     required.forEach((field) => {
@@ -28,7 +28,9 @@ function validateBatch(payload, partial = false) {
 
   validatePositiveInteger(payload, "variant_id");
   validatePositiveInteger(payload, "provider_id");
-  validateString(payload, "batch_number", { max: 100 });
+  if (payload.batch_number !== undefined && payload.batch_number !== null && payload.batch_number !== "") {
+    validateString(payload, "batch_number", { max: 100 });
+  }
   validateDate(payload, "purchase_date");
   validatePositiveInteger(payload, "quantity");
   validateNonNegativeNumber(payload, "unit_cost");
@@ -36,6 +38,31 @@ function validateBatch(payload, partial = false) {
   validateEnum(payload, "status", BATCH_STATUSES);
   validateString(payload, "notes", { max: 2000, allowBlank: true });
   validateBoolean(payload, "active");
+}
+
+async function generateBatchNumber(client, purchaseDate) {
+  const year = new Date(purchaseDate).getUTCFullYear();
+  const prefix = `LOT-${year}-`;
+
+  await client.query("SELECT pg_advisory_xact_lock(hashtext('license_batches_batch_number'))");
+
+  const { rows } = await client.query(
+    `
+      SELECT batch_number
+      FROM license_batches
+      WHERE batch_number LIKE $1
+      ORDER BY batch_number DESC
+      LIMIT 1
+    `,
+    [`${prefix}%`]
+  );
+
+  const lastNumber = rows[0]?.batch_number
+    ? Number.parseInt(rows[0].batch_number.replace(prefix, ""), 10)
+    : 0;
+  const nextNumber = Number.isFinite(lastNumber) ? lastNumber + 1 : 1;
+
+  return `${prefix}${String(nextNumber).padStart(4, "0")}`;
 }
 
 async function listBatches(query) {
@@ -55,11 +82,25 @@ async function listBatches(query) {
         pv.duration_days AS variant_duration_days,
         p.name AS product_name,
         pr.name AS provider_name,
+        COALESCE(stats.registered_licenses, 0) AS registered_licenses,
+        GREATEST(lb.quantity - COALESCE(stats.registered_licenses, 0), 0) AS available_to_register,
+        COALESCE(stats.activated_licenses, 0) AS activated_licenses,
+        COALESCE(stats.reserved_licenses, 0) AS reserved_licenses,
+        COALESCE(stats.expired_licenses, 0) AS expired_licenses,
         COUNT(*) OVER() AS total_count
       FROM license_batches lb
       JOIN product_variants pv ON pv.id = lb.variant_id
       JOIN products p ON p.id = pv.product_id
       JOIN providers pr ON pr.id = lb.provider_id
+      LEFT JOIN LATERAL (
+        SELECT
+          COUNT(*) FILTER (WHERE lu.active = TRUE AND lu.status <> 'cancelled')::INT AS registered_licenses,
+          COUNT(*) FILTER (WHERE lu.active = TRUE AND lu.status = 'activated')::INT AS activated_licenses,
+          COUNT(*) FILTER (WHERE lu.active = TRUE AND lu.status = 'reserved')::INT AS reserved_licenses,
+          COUNT(*) FILTER (WHERE lu.active = TRUE AND lu.status = 'expired')::INT AS expired_licenses
+        FROM license_units lu
+        WHERE lu.batch_id = lb.id
+      ) stats ON TRUE
       WHERE ($1::BOOLEAN = TRUE OR lb.active = TRUE)
         AND ($2::TEXT IS NULL OR lb.status = $2)
         AND ($3::BIGINT IS NULL OR lb.variant_id = $3)
@@ -83,11 +124,25 @@ async function getBatch(id) {
         pv.billing_cycle AS variant_billing_cycle,
         pv.duration_days AS variant_duration_days,
         p.name AS product_name,
-        pr.name AS provider_name
+        pr.name AS provider_name,
+        COALESCE(stats.registered_licenses, 0) AS registered_licenses,
+        GREATEST(lb.quantity - COALESCE(stats.registered_licenses, 0), 0) AS available_to_register,
+        COALESCE(stats.activated_licenses, 0) AS activated_licenses,
+        COALESCE(stats.reserved_licenses, 0) AS reserved_licenses,
+        COALESCE(stats.expired_licenses, 0) AS expired_licenses
       FROM license_batches lb
       JOIN product_variants pv ON pv.id = lb.variant_id
       JOIN products p ON p.id = pv.product_id
       JOIN providers pr ON pr.id = lb.provider_id
+      LEFT JOIN LATERAL (
+        SELECT
+          COUNT(*) FILTER (WHERE lu.active = TRUE AND lu.status <> 'cancelled')::INT AS registered_licenses,
+          COUNT(*) FILTER (WHERE lu.active = TRUE AND lu.status = 'activated')::INT AS activated_licenses,
+          COUNT(*) FILTER (WHERE lu.active = TRUE AND lu.status = 'reserved')::INT AS reserved_licenses,
+          COUNT(*) FILTER (WHERE lu.active = TRUE AND lu.status = 'expired')::INT AS expired_licenses
+        FROM license_units lu
+        WHERE lu.batch_id = lb.id
+      ) stats ON TRUE
       WHERE lb.id = $1
     `,
     [id]
@@ -106,6 +161,10 @@ async function createBatch(payload, userId, ipAddress) {
 
   try {
     await client.query("BEGIN");
+    const batchNumber =
+      payload.batch_number && String(payload.batch_number).trim()
+        ? String(payload.batch_number).trim()
+        : await generateBatchNumber(client, payload.purchase_date);
 
     const { rows } = await client.query(
       `
@@ -129,7 +188,7 @@ async function createBatch(payload, userId, ipAddress) {
       [
         payload.variant_id,
         payload.provider_id,
-        String(payload.batch_number).trim(),
+        batchNumber,
         payload.purchase_date,
         payload.quantity,
         payload.unit_cost,

@@ -63,6 +63,9 @@ async function cleanupTestData() {
         ))
         OR (entity_name = 'license_batches' AND entity_id IN (
           SELECT id FROM license_batches WHERE batch_number LIKE $1
+          OR variant_id IN (
+            SELECT id FROM product_variants WHERE name LIKE $1 OR default_code LIKE $1
+          )
         ))
         OR (entity_name = 'product_variants' AND entity_id IN (
           SELECT id FROM product_variants WHERE name LIKE $1 OR default_code LIKE $1
@@ -93,6 +96,15 @@ async function cleanupTestData() {
     await client.query("DELETE FROM license_batches WHERE batch_number LIKE $1", [
       `${TEST_PREFIX}%`,
     ]);
+    await client.query(
+      `
+        DELETE FROM license_batches
+        WHERE variant_id IN (
+          SELECT id FROM product_variants WHERE name LIKE $1 OR default_code LIKE $1
+        )
+      `,
+      [`${TEST_PREFIX}%`]
+    );
     await client.query(
       "DELETE FROM product_variants WHERE name LIKE $1 OR default_code LIKE $1",
       [`${TEST_PREFIX}%`]
@@ -383,6 +395,119 @@ describe("TrackSaaS backend", () => {
         ),
       /confirmado/
     );
+  });
+
+  test("genera código de lote automáticamente cuando no se envía", async () => {
+    const providerId = await getProviderId();
+    const product = await request("/api/products", {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        name: `${TEST_PREFIX}-PRODUCT-AUTO-BATCH`,
+        description: "Producto para lote automático",
+      }),
+    });
+    assert.equal(product.response.status, 201);
+
+    const variant = await request("/api/variants", {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        product_id: product.body.data.id,
+        name: `${TEST_PREFIX}-VARIANT-AUTO-BATCH`,
+        default_code: `${TEST_PREFIX}-VAR-AUTO-BATCH`,
+        billing_cycle: "annual",
+        duration_days: 365,
+        default_cost: 10,
+        currency_code: "PEN",
+      }),
+    });
+    assert.equal(variant.response.status, 201);
+
+    const batch = await request("/api/batches", {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        variant_id: variant.body.data.id,
+        provider_id: providerId,
+        purchase_date: "2026-07-22",
+        quantity: 3,
+        unit_cost: 10,
+        currency_code: "PEN",
+        status: "confirmed",
+      }),
+    });
+
+    assert.equal(batch.response.status, 201);
+    assert.match(batch.body.data.batch_number, /^LOT-2026-\d{4}$/);
+  });
+
+  test("lotes devuelven disponibilidad real por estado de licencia", async () => {
+    const batch = await createBatchFixture("CAPACITY", "confirmed");
+    const basePayload = {
+      batch_id: batch.id,
+      responsible_user_id: adminUserId,
+      validity_start_mode: "purchase_date",
+      start_date: "2026-07-21",
+      cost: 10,
+      billing_cycle: "annual",
+    };
+
+    const available = await licensesService.createLicense(
+      {
+        ...basePayload,
+        name: `${TEST_PREFIX}-LICENSE-CAPACITY-AVAILABLE`,
+        commercial_identifier: `${TEST_PREFIX}-CAPACITY-AVAILABLE`,
+        license_code: makeLicenseCode(),
+      },
+      adminUserId,
+      "127.0.0.1"
+    );
+    const reserved = await licensesService.createLicense(
+      {
+        ...basePayload,
+        name: `${TEST_PREFIX}-LICENSE-CAPACITY-RESERVED`,
+        commercial_identifier: `${TEST_PREFIX}-CAPACITY-RESERVED`,
+        license_code: makeLicenseCode(),
+      },
+      adminUserId,
+      "127.0.0.1"
+    );
+    const expired = await licensesService.createLicense(
+      {
+        ...basePayload,
+        name: `${TEST_PREFIX}-LICENSE-CAPACITY-EXPIRED`,
+        commercial_identifier: `${TEST_PREFIX}-CAPACITY-EXPIRED`,
+        license_code: makeLicenseCode(),
+      },
+      adminUserId,
+      "127.0.0.1"
+    );
+
+    const activated = await request(`/api/licenses/${available.id}/activate`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        device_reference: `${TEST_PREFIX}-CAPACITY-DEVICE`,
+      }),
+    });
+    assert.equal(activated.response.status, 200);
+    await pool.query("UPDATE license_units SET status = 'reserved' WHERE id = $1", [reserved.id]);
+    await pool.query("UPDATE license_units SET status = 'expired' WHERE id = $1", [expired.id]);
+
+    const response = await request(`/api/batches?search=${TEST_PREFIX}-BATCH-CAPACITY`, {
+      headers: jsonHeaders(),
+    });
+
+    assert.equal(response.response.status, 200);
+    const row = response.body.data.find((item) => item.id === batch.id);
+    assert.ok(row);
+    assert.equal(row.quantity, 5);
+    assert.equal(row.registered_licenses, 3);
+    assert.equal(row.available_to_register, 2);
+    assert.equal(row.activated_licenses, 1);
+    assert.equal(row.reserved_licenses, 1);
+    assert.equal(row.expired_licenses, 1);
   });
 
   test("cifrado, hash y enmascarado de licencia", () => {

@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import ActivationModal from './ActivationModal'
 import DataTable from './DataTable'
 import EntityModal from './EntityModal'
+import LicenseDetailModal from './LicenseDetailModal'
 import LicenseWizard from './LicenseWizard'
+import ReasonModal from './ReasonModal'
 import { formConfig, rolePermissions, tableConfig } from '../config/modules'
 
 function DataModule({ api, moduleId, setError, user }) {
@@ -18,6 +20,7 @@ function DataModule({ api, moduleId, setError, user }) {
   const [selectedRow, setSelectedRow] = useState(null)
   const [activationRow, setActivationRow] = useState(null)
   const [guidedModal, setGuidedModal] = useState(null)
+  const [reasonAction, setReasonAction] = useState(null)
   const permissions = rolePermissions[user?.role?.name]?.[moduleId] || []
   const canCreate = permissions.includes('create')
   const canUpdate = permissions.includes('update')
@@ -52,44 +55,72 @@ function DataModule({ api, moduleId, setError, user }) {
     setLicenseWizardInitialValues({})
     setActivationRow(null)
     setGuidedModal(null)
+    setReasonAction(null)
     setSearchTerm('')
     load('')
   }, [config?.path])
 
   async function licenseAction(id, action) {
     if (action === 'mark-expired') {
-      if (!window.confirm('¿Confirmas marcar esta licencia como expirada? Usa esta acción cuando el proveedor rechaza una licencia física o no activada.')) {
-        return
-      }
-
-      try {
-        await api.request(`/licenses/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify({
-            status: 'expired',
-            expiration_date: new Date().toISOString().slice(0, 10),
-          }),
-        })
-        await load()
-        setError('Licencia marcada como expirada.', 'info')
-      } catch (err) {
-        setError(err.message)
-      }
+      setReasonAction({
+        title: 'Marcar licencia como expirada',
+        description: 'Usa esta acción cuando soporte confirma que el proveedor rechazó la clave o que ya no puede activarse.',
+        confirmLabel: 'Marcar expirada',
+        danger: true,
+        onConfirm: async (reason) => {
+          await api.request(`/licenses/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              status: 'expired',
+              expiration_date: new Date().toISOString().slice(0, 10),
+              reason,
+              notes: reason,
+            }),
+          })
+          setReasonAction(null)
+          await load()
+          setError('Licencia marcada como expirada.', 'info')
+        },
+      })
       return
     }
 
-    const path = action === 'cancel' ? `/licenses/${id}` : `/licenses/${id}/${action}`
-    const method = action === 'cancel' ? 'DELETE' : 'POST'
+    if (action === 'cancel') {
+      setReasonAction({
+        title: 'Cancelar licencia',
+        description: 'Indica por qué se cancela la licencia. Esto evita dudas de responsabilidad en auditoría.',
+        confirmLabel: 'Cancelar licencia',
+        danger: true,
+        onConfirm: async (reason) => {
+          await api.request(`/licenses/${id}`, {
+            method: 'DELETE',
+            body: JSON.stringify({ reason, notes: reason }),
+          })
+          setReasonAction(null)
+          await load()
+          setError('Licencia cancelada.', 'info')
+        },
+      })
+      return
+    }
 
     try {
-      if (action === 'cancel' && !window.confirm('¿Confirmas cancelar esta licencia?')) {
-        return
-      }
-      await api.request(path, { method, body: action === 'activate' ? '{}' : undefined })
+      const path = `/licenses/${id}/${action}`
+      await api.request(path, { method: 'POST' })
       await load()
     } catch (err) {
       setError(err.message)
     }
+  }
+
+  async function submitReasonAction(reason) {
+    if (!reasonAction?.onConfirm) return
+
+      try {
+        await reasonAction.onConfirm(reason)
+      } catch (err) {
+        setError(err.message)
+      }
   }
 
   function openCreateForm() {
@@ -151,6 +182,125 @@ function DataModule({ api, moduleId, setError, user }) {
 
   function isInactiveRow(row) {
     return row.active === false || row.status === 'cancelled'
+  }
+
+  function renderLicenseActions(row) {
+    if (row.status === 'available') {
+      return (
+        <>
+          {permissions.includes('reserve') && (
+            <button type="button" onClick={() => licenseAction(row.id, 'reserve')}>
+              Reservar
+            </button>
+          )}
+          {permissions.includes('activate') && (
+            <button type="button" onClick={() => setActivationRow(row)}>
+              Activar ahora
+            </button>
+          )}
+          {canUpdate && (
+            <button type="button" className="danger-button" onClick={() => licenseAction(row.id, 'mark-expired')}>
+              Marcar expirada
+            </button>
+          )}
+          {canDelete && (
+            <button type="button" className="danger-button" onClick={() => licenseAction(row.id, 'cancel')}>
+              Cancelar
+            </button>
+          )}
+        </>
+      )
+    }
+
+    if (row.status === 'reserved') {
+      return (
+        <>
+          {permissions.includes('reserve') && (
+            <button type="button" onClick={() => licenseAction(row.id, 'release-reservation')}>
+              Liberar reserva
+            </button>
+          )}
+          {permissions.includes('activate') && (
+            <button type="button" onClick={() => setActivationRow(row)}>
+              Activar ahora
+            </button>
+          )}
+          {canUpdate && (
+            <button type="button" className="danger-button" onClick={() => licenseAction(row.id, 'mark-expired')}>
+              Marcar expirada
+            </button>
+          )}
+          {canDelete && (
+            <button type="button" className="danger-button" onClick={() => licenseAction(row.id, 'cancel')}>
+              Cancelar
+            </button>
+          )}
+        </>
+      )
+    }
+
+    if (row.status === 'activated') {
+      return (
+        <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+          Ver activación
+        </button>
+      )
+    }
+
+    if (row.status === 'expired') {
+      return (
+        <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+          Ver motivo
+        </button>
+      )
+    }
+
+    if (row.status === 'cancelled') {
+      return canUpdate ? (
+        <button type="button" onClick={() => reactivateRow(row)}>
+          Reactivar
+        </button>
+      ) : null
+    }
+
+    return (
+      <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+        Ver ficha
+      </button>
+    )
+  }
+
+  function renderGenericActions(row) {
+    return (
+      <>
+        <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+          Ver
+        </button>
+        {entityForm && canUpdate && (
+          <button type="button" onClick={() => openEditForm(row)}>
+            Editar
+          </button>
+        )}
+        {canUpdate && isInactiveRow(row) && (
+          <button type="button" onClick={() => reactivateRow(row)}>
+            Reactivar
+          </button>
+        )}
+        {(canDelete || permissions.includes('delete')) && !isInactiveRow(row) && (
+          <button type="button" className="danger-button" onClick={() => removeRow(row)}>
+            {moduleId === 'batches' ? 'Cancelar' : 'Desactivar'}
+          </button>
+        )}
+      </>
+    )
+  }
+
+  function renderActivationActions(row) {
+    return (
+      <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+        Ver activación
+      </button>
+    )
   }
 
   function renderModuleSummary() {
@@ -258,7 +408,30 @@ function DataModule({ api, moduleId, setError, user }) {
         />
       )}
 
-      {entityForm && formMode && (
+      {reasonAction && (
+        <ReasonModal
+          title={reasonAction.title}
+          description={reasonAction.description}
+          confirmLabel={reasonAction.confirmLabel}
+          danger={reasonAction.danger}
+          onClose={() => setReasonAction(null)}
+          onConfirm={submitReasonAction}
+        />
+      )}
+
+      {['licenses', 'activations'].includes(moduleId) && formMode === 'detail' && selectedRow && (
+        <LicenseDetailModal
+          api={api}
+          license={moduleId === 'activations' ? { ...selectedRow, id: selectedRow.license_unit_id } : selectedRow}
+          setError={setError}
+          onClose={() => {
+            setFormMode(null)
+            setSelectedRow(null)
+          }}
+        />
+      )}
+
+      {entityForm && formMode && !(['licenses', 'activations'].includes(moduleId) && formMode === 'detail') && (
         <EntityModal
           api={api}
           config={config}
@@ -307,54 +480,19 @@ function DataModule({ api, moduleId, setError, user }) {
           moduleId={moduleId}
           rows={rows}
           columns={config.columns}
-          actions={
-            entityForm || moduleId === 'licenses'
-              ? (row) => (
-                <div className="row-actions">
-                  <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
-                    Ver
-                  </button>
-	                  {entityForm && canUpdate && moduleId !== 'licenses' && (
-	                    <button type="button" onClick={() => openEditForm(row)}>
-	                      Editar
-	                    </button>
-                  )}
-	                  {moduleId === 'licenses' && permissions.includes('reserve') && row.status === 'available' && (
-	                    <>
-	                      <button type="button" onClick={() => licenseAction(row.id, 'reserve')}>
-	                        Reservar
-	                      </button>
-	                    </>
-	                  )}
-	                  {moduleId === 'licenses' && permissions.includes('reserve') && row.status === 'reserved' && (
-	                    <button type="button" onClick={() => licenseAction(row.id, 'release-reservation')}>
-	                      Liberar reserva
-	                    </button>
-	                  )}
-		                  {moduleId === 'licenses' && permissions.includes('activate') && ['available', 'reserved'].includes(row.status) && (
-		                    <button type="button" onClick={() => setActivationRow(row)}>
-		                      Activar ahora
-		                    </button>
-		                  )}
-		                  {moduleId === 'licenses' && canUpdate && ['available', 'reserved'].includes(row.status) && (
-		                    <button type="button" className="danger-button" onClick={() => licenseAction(row.id, 'mark-expired')}>
-		                      Marcar expirada
-		                    </button>
-		                  )}
-                  {canUpdate && isInactiveRow(row) && (
-                    <button type="button" onClick={() => reactivateRow(row)}>
-                      Reactivar
-                    </button>
-                  )}
-	                  {moduleId !== 'licenses' && (canDelete || permissions.includes('delete')) && !isInactiveRow(row) && (
-	                    <button type="button" className="danger-button" onClick={() => removeRow(row)}>
-	                      {moduleId === 'batches' ? 'Cancelar' : 'Desactivar'}
-	                    </button>
-	                  )}
-                </div>
-              )
-              : null
-          }
+	          actions={
+	            entityForm || ['licenses', 'activations'].includes(moduleId)
+	              ? (row) => (
+	                <div className="row-actions">
+	                  {moduleId === 'licenses'
+	                    ? renderLicenseActions(row)
+	                    : moduleId === 'activations'
+	                      ? renderActivationActions(row)
+	                      : renderGenericActions(row)}
+	                </div>
+	              )
+	              : null
+	          }
         />
       )}
     </section>

@@ -85,6 +85,7 @@ function validateLicense(payload, partial = false) {
   validateEnum(payload, "billing_cycle", BILLING_CYCLES);
   validateCurrency(payload, "currency_code");
   validateString(payload, "notes", { max: 2000, allowBlank: true });
+  validateString(payload, "reason", { max: 500 });
   validateBoolean(payload, "active");
 
   if (payload.status === "activated" && !payload.activation_date) {
@@ -228,6 +229,7 @@ async function listLicenses(query) {
         lb.batch_number,
         pv.name AS variant_name,
         p.name AS product_name,
+        pr.name AS provider_name,
         u.name AS responsible_user_name,
         creator.name AS created_by_name,
         COUNT(*) OVER() AS total_count
@@ -235,6 +237,7 @@ async function listLicenses(query) {
       JOIN license_batches lb ON lb.id = lu.batch_id
       JOIN product_variants pv ON pv.id = lb.variant_id
       JOIN products p ON p.id = pv.product_id
+      JOIN providers pr ON pr.id = lb.provider_id
       JOIN users u ON u.id = lu.responsible_user_id
       JOIN users creator ON creator.id = lu.create_uid
       WHERE ($1::BOOLEAN = TRUE OR lu.active = TRUE)
@@ -298,12 +301,14 @@ async function getLicense(id) {
         lb.batch_number,
         pv.name AS variant_name,
         p.name AS product_name,
+        pr.name AS provider_name,
         u.name AS responsible_user_name,
         creator.name AS created_by_name
       FROM license_units lu
       JOIN license_batches lb ON lb.id = lu.batch_id
       JOIN product_variants pv ON pv.id = lb.variant_id
       JOIN products p ON p.id = pv.product_id
+      JOIN providers pr ON pr.id = lb.provider_id
       JOIN users u ON u.id = lu.responsible_user_id
       JOIN users creator ON creator.id = lu.create_uid
       WHERE lu.id = $1
@@ -569,15 +574,21 @@ async function updateLicense(id, payload, userId, ipAddress) {
     const safeOldLicense = publicLicense(oldLicense);
     const safeLicense = publicLicense(rows[0]);
 
-    await recordAudit(client, {
-      userId,
-      entityName: "license_units",
-      entityId: id,
-      action,
-      oldValues: safeOldLicense,
-      newValues: safeLicense,
-      ipAddress,
-    });
+	    await recordAudit(client, {
+	      userId,
+	      entityName: "license_units",
+	      entityId: id,
+	      action,
+	      oldValues: safeOldLicense,
+	      newValues: payload.reason
+	        ? {
+	          operation: action === "cancel" ? "cancel" : safeLicense.status === "expired" ? "mark_expired" : "update",
+	          reason: String(payload.reason).trim(),
+	          license: safeLicense,
+	        }
+	        : safeLicense,
+	      ipAddress,
+	    });
 
     await client.query("COMMIT");
     return safeLicense;
@@ -589,8 +600,8 @@ async function updateLicense(id, payload, userId, ipAddress) {
   }
 }
 
-async function deactivateLicense(id, userId, ipAddress) {
-  return updateLicense(id, { status: "cancelled" }, userId, ipAddress);
+async function deactivateLicense(id, payload, userId, ipAddress) {
+  return updateLicense(id, { status: "cancelled", reason: payload?.reason, notes: payload?.notes }, userId, ipAddress);
 }
 
 async function reserveLicense(id, payload, userId, ipAddress) {

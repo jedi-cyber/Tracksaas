@@ -643,6 +643,64 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.license-sheet {
+  display: grid;
+  gap: 18px;
+}
+
+.license-sheet section {
+  display: grid;
+  gap: 10px;
+}
+
+.license-sheet h4 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.muted-text {
+  margin: 0;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.audit-timeline {
+  display: grid;
+  gap: 8px;
+}
+
+.audit-timeline div {
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.audit-timeline strong,
+.audit-timeline span,
+.audit-timeline p {
+  display: block;
+}
+
+.audit-timeline strong {
+  color: #0f172a;
+}
+
+.audit-timeline span {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.audit-timeline p {
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .status-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
