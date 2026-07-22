@@ -18,6 +18,7 @@ const {
   validatePositiveInteger,
   validateString,
 } = require("../utils/validators");
+const { ensureLicenseSalePriceColumn } = require("../utils/schemaMigrations");
 
 const LICENSE_STATUSES = ["available", "reserved", "activated", "expired", "cancelled"];
 const BILLING_CYCLES = ["monthly", "annual"];
@@ -82,6 +83,7 @@ function validateLicense(payload, partial = false) {
   validateDateOrder(payload, "start_date", "next_renewal_date");
   validateDateOrder(payload, "start_date", "redeem_deadline_date");
   validateNonNegativeNumber(payload, "cost");
+  validateNonNegativeNumber(payload, "sale_price");
   validateEnum(payload, "billing_cycle", BILLING_CYCLES);
   validateCurrency(payload, "currency_code");
   validateString(payload, "notes", { max: 2000, allowBlank: true });
@@ -166,6 +168,15 @@ function todayInput() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function shouldExpireByPurchaseRenewal(validityStartMode, renewalDate, status) {
+  return (
+    validityStartMode === "purchase_date" &&
+    renewalDate &&
+    toDateInput(renewalDate) < todayInput() &&
+    ["available", "reserved", "activated"].includes(status || "available")
+  );
+}
+
 function assertLicenseNotOverdueForOperation(license, operation) {
   const today = todayInput();
 
@@ -188,6 +199,8 @@ function publicActivation(row) {
 }
 
 async function listLicenses(query) {
+  await ensureLicenseSalePriceColumn();
+
   const { page, limit, offset } = getPagination(query);
   const includeInactive = query.includeInactive === "true";
   const status = query.status || null;
@@ -218,6 +231,7 @@ async function listLicenses(query) {
         lu.activation_date,
         lu.expiration_date,
         lu.cost,
+        lu.sale_price,
         lu.billing_cycle,
         lu.currency_code,
         lu.notes,
@@ -267,6 +281,8 @@ async function listLicenses(query) {
 }
 
 async function getLicense(id) {
+  await ensureLicenseSalePriceColumn();
+
   const { rows } = await pool.query(
     `
       SELECT
@@ -287,10 +303,11 @@ async function getLicense(id) {
           WHEN lu.redeem_deadline_date IS NOT NULL THEN 'limite_de_canje'
           ELSE 'compra_mas_antigua'
         END AS activation_priority_reason,
-        lu.activation_date,
-        lu.expiration_date,
-        lu.cost,
-        lu.billing_cycle,
+	        lu.activation_date,
+	        lu.expiration_date,
+	        lu.cost,
+        lu.sale_price,
+	        lu.billing_cycle,
         lu.currency_code,
         lu.notes,
         lu.active,
@@ -324,6 +341,8 @@ async function getLicense(id) {
 }
 
 async function createLicense(payload, userId, ipAddress) {
+  await ensureLicenseSalePriceColumn();
+
   validateLicense(payload);
   const normalizedLicenseCode = String(payload.license_code).trim().toUpperCase();
   const encryptedCode = encryptLicenseCode(normalizedLicenseCode);
@@ -375,11 +394,19 @@ async function createLicense(payload, userId, ipAddress) {
       [payload.batch_id]
     );
 
-    if (usedCapacity.rows[0].used_quantity >= batch.quantity) {
-      throw apiError("El lote ya alcanzó la cantidad máxima de licencias", 409);
-    }
+	    if (usedCapacity.rows[0].used_quantity >= batch.quantity) {
+	      throw apiError("El lote ya alcanzó la cantidad máxima de licencias", 409);
+	    }
 
-    const { rows } = await client.query(
+    const requestedStatus = payload.status || "available";
+    const finalStatus = shouldExpireByPurchaseRenewal(validityStartMode, nextRenewalDate, requestedStatus)
+      ? "expired"
+      : requestedStatus;
+    const finalExpirationDate = finalStatus === "expired" && validityStartMode === "purchase_date"
+      ? nextRenewalDate
+      : payload.expiration_date || null;
+	
+	    const { rows } = await client.query(
       `
         INSERT INTO license_units (
           batch_id,
@@ -396,18 +423,19 @@ async function createLicense(payload, userId, ipAddress) {
           redeem_deadline_date,
           activation_date,
           expiration_date,
-          cost,
-          billing_cycle,
+	        cost,
+          sale_price,
+	          billing_cycle,
           currency_code,
           notes,
           active,
           create_uid,
           write_uid
         )
-        VALUES (
-          $1, $2, $3, $4, $5, $6, $7, COALESCE($8, 'available'), COALESCE($9, 'purchase_date'), $10, $11,
-          $12, $13, $14, $15, $16, COALESCE($17, 'PEN'), $18, COALESCE($19, TRUE), $20, $20
-        )
+	        VALUES (
+	          $1, $2, $3, $4, $5, $6, $7, COALESCE($8, 'available'), COALESCE($9, 'purchase_date'), $10, $11,
+		          $12::DATE, $13::TIMESTAMPTZ, $14::DATE, $15::NUMERIC, COALESCE($16::NUMERIC, $15::NUMERIC), $17, COALESCE($18, 'PEN'), $19, COALESCE($20, TRUE), $21, $21
+	        )
         RETURNING *
       `,
       [
@@ -417,20 +445,21 @@ async function createLicense(payload, userId, ipAddress) {
         commercialIdentifier,
         encryptedCode,
         codeHash,
-        maskedCode,
-        payload.status || null,
+	        maskedCode,
+        finalStatus,
         validityStartMode,
         validityStartMode === "first_activation" ? null : payload.start_date,
         nextRenewalDate,
         payload.redeem_deadline_date || null,
-        payload.activation_date || null,
-        payload.expiration_date || null,
-        payload.cost,
-        billingCycle,
-        payload.currency_code || null,
-        payload.notes || null,
-        payload.active,
-        userId,
+	        payload.activation_date || null,
+	        finalExpirationDate,
+	        payload.cost,
+        payload.sale_price,
+	        billingCycle,
+	        payload.currency_code || null,
+	        payload.notes || null,
+	        payload.active,
+	        userId,
       ]
     );
 
@@ -456,6 +485,8 @@ async function createLicense(payload, userId, ipAddress) {
 }
 
 async function updateLicense(id, payload, userId, ipAddress) {
+  await ensureLicenseSalePriceColumn();
+
   validateLicense(payload, true);
 
   if (payload.status === "activated") {
@@ -506,17 +537,26 @@ async function updateLicense(id, payload, userId, ipAddress) {
         payload.billing_cycle !== undefined ||
         payload.validity_start_mode !== undefined);
 
-    if (shouldRecalculateRenewal) {
-      const targetBatchId = payload.batch_id || oldLicense.batch_id;
-      const defaults = await getBatchRenewalDefaults(client, targetBatchId);
-      const targetBillingCycle = payload.billing_cycle || defaults.billing_cycle || oldLicense.billing_cycle;
-      const targetStartDate = payload.start_date || toDateInput(oldLicense.start_date);
-      const durationDays = defaults.duration_days || fallbackDurationDays(targetBillingCycle);
-      nextRenewalDate = calculateRenewalDate(targetStartDate, durationDays);
-    }
-    const clearRenewalDate = payload.validity_start_mode === "first_activation" && oldLicense.status !== "activated";
+	    if (shouldRecalculateRenewal) {
+	      const targetBatchId = payload.batch_id || oldLicense.batch_id;
+	      const defaults = await getBatchRenewalDefaults(client, targetBatchId);
+	      const targetBillingCycle = payload.billing_cycle || defaults.billing_cycle || oldLicense.billing_cycle;
+	      const targetStartDate = payload.start_date || toDateInput(oldLicense.start_date);
+	      const durationDays = defaults.duration_days || fallbackDurationDays(targetBillingCycle);
+	      nextRenewalDate = calculateRenewalDate(targetStartDate, durationDays);
+	    }
+	    const clearRenewalDate = payload.validity_start_mode === "first_activation" && oldLicense.status !== "activated";
+    const effectiveRenewalDate = clearRenewalDate ? null : nextRenewalDate || oldLicense.next_renewal_date;
+    const requestedStatus = payload.status || oldLicense.status;
+    const finalStatus = shouldExpireByPurchaseRenewal(targetValidityStartMode, effectiveRenewalDate, requestedStatus)
+      ? "expired"
+      : payload.status;
+    const finalExpirationDate =
+      finalStatus === "expired" && targetValidityStartMode === "purchase_date"
+        ? effectiveRenewalDate
+        : payload.expiration_date;
 
-    const { rows } = await client.query(
+	    const { rows } = await client.query(
       `
         UPDATE license_units
         SET
@@ -530,16 +570,17 @@ async function updateLicense(id, payload, userId, ipAddress) {
           status = COALESCE($9, status),
           validity_start_mode = COALESCE($10, validity_start_mode),
           start_date = COALESCE($11, start_date),
-          next_renewal_date = CASE WHEN $22::BOOLEAN THEN NULL ELSE COALESCE($12, next_renewal_date) END,
+	          next_renewal_date = CASE WHEN $23::BOOLEAN THEN NULL ELSE COALESCE($12, next_renewal_date) END,
           redeem_deadline_date = COALESCE($13, redeem_deadline_date),
           activation_date = COALESCE($14, activation_date),
           expiration_date = COALESCE($15, expiration_date),
-          cost = COALESCE($16, cost),
-          billing_cycle = COALESCE($17, billing_cycle),
-          currency_code = COALESCE($18, currency_code),
-          notes = COALESCE($19, notes),
-          active = COALESCE($20, active),
-          write_uid = $21
+	          cost = COALESCE($16, cost),
+            sale_price = COALESCE($17, sale_price),
+	          billing_cycle = COALESCE($18, billing_cycle),
+	          currency_code = COALESCE($19, currency_code),
+	          notes = COALESCE($20, notes),
+	          active = COALESCE($21, active),
+	          write_uid = $22
         WHERE id = $1
         RETURNING *
       `,
@@ -554,18 +595,19 @@ async function updateLicense(id, payload, userId, ipAddress) {
         codeFields.encrypted || null,
         codeFields.hash || null,
         codeFields.masked || null,
-        payload.status,
+	        finalStatus,
         payload.validity_start_mode,
         payload.start_date,
         nextRenewalDate,
         payload.redeem_deadline_date,
         payload.activation_date,
-        payload.expiration_date,
-        payload.cost,
-        payload.billing_cycle,
-        payload.currency_code,
-        payload.notes,
-        payload.active,
+	        finalExpirationDate,
+	        payload.cost,
+        payload.sale_price,
+	        payload.billing_cycle,
+	        payload.currency_code,
+	        payload.notes,
+	        payload.active,
         userId,
         clearRenewalDate,
       ]
@@ -745,18 +787,12 @@ async function expireOverdueLicenses(userId, ipAddress) {
     const oldResult = await client.query(
       `
         SELECT *
-        FROM license_units
-        WHERE active = TRUE
-          AND status IN ('available', 'reserved', 'activated')
-          AND (
-            next_renewal_date < CURRENT_DATE
-            OR (
-              validity_start_mode = 'first_activation'
-              AND activation_date IS NULL
-              AND redeem_deadline_date < CURRENT_DATE
-            )
-          )
-        ORDER BY COALESCE(next_renewal_date, redeem_deadline_date) ASC, id ASC
+	        FROM license_units
+	        WHERE active = TRUE
+	          AND status IN ('available', 'reserved', 'activated')
+	          AND validity_start_mode = 'purchase_date'
+	          AND next_renewal_date < CURRENT_DATE
+	        ORDER BY next_renewal_date ASC, id ASC
         FOR UPDATE
       `
     );
@@ -775,8 +811,8 @@ async function expireOverdueLicenses(userId, ipAddress) {
       `
         UPDATE license_units
         SET
-          status = 'expired',
-          expiration_date = COALESCE(expiration_date, next_renewal_date, redeem_deadline_date),
+	          status = 'expired',
+	          expiration_date = COALESCE(expiration_date, next_renewal_date),
           write_uid = $2
         WHERE id = ANY($1::BIGINT[])
         RETURNING *

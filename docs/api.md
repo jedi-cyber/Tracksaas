@@ -309,6 +309,7 @@ Body de creación:
   "start_date": "2026-07-21",
   "redeem_deadline_date": null,
   "cost": 10,
+  "sale_price": 18,
   "billing_cycle": "annual",
   "currency_code": "PEN",
   "notes": "Licencia individual"
@@ -331,8 +332,9 @@ Reglas:
 - No se agrega un estado de canje. Las reglas se aplican sobre los estados existentes:
 - `available` + `first_activation` + `start_date = null`: disponible para activar.
 - `available` + `purchase_date` + `start_date` definida: disponible, pero su vigencia ya está corriendo.
-- `expired`: vencida por `next_renewal_date` o por `redeem_deadline_date`.
-- El backend bloquea reserva/activación si la licencia ya venció por renovación o por límite de canje, aunque todavía no se haya ejecutado el endpoint de expiración.
+- `expired`: vencida por `next_renewal_date` o marcada manualmente por soporte.
+- El backend bloquea reserva/activación si la licencia ya venció por renovación o por límite de canje.
+- El límite de canje no convierte automáticamente una licencia física en `expired`; se usa como alerta y bloqueo operativo hasta que soporte confirme el rechazo del proveedor.
 - Para licencias físicas/distribuidor sin fecha cierta de baja por proveedor, soporte puede marcar manualmente la licencia como `expired` si el proveedor rechaza la activación.
 - El listado de licencias prioriza activación por fecha crítica más antigua:
 - Online/oficial: usa `next_renewal_date`, porque la vigencia ya corre desde compra/facturación.
@@ -420,7 +422,7 @@ POST /licenses/expire-overdue
 
 Reglas:
 
-- Marca como `expired` licencias activas con `next_renewal_date < CURRENT_DATE`.
+- Marca como `expired` licencias activas de compra/facturación con `next_renewal_date < CURRENT_DATE`.
 - Aplica a estados `available`, `reserved` y `activated`.
 - Registra auditoría por licencia afectada.
 
@@ -454,6 +456,21 @@ GET /dashboard/inventory-summary
 GET /dashboard/alert-summary
 GET /dashboard/alerts
 GET /dashboard/renewals
+```
+
+Resumen comercial (`GET /dashboard/financial`):
+
+```json
+{
+  "data": {
+    "activated_revenue": "8500.00",
+    "sold_license_cost": "5300.00",
+    "estimated_margin": "3200.00",
+    "available_inventory_value": "12000.00",
+    "monthly_equivalent_cost": "1000.00",
+    "annual_cost_projection": "12000.00"
+  }
+}
 ```
 
 Alertas:

@@ -173,11 +173,13 @@ El sistema diferencia dos códigos:
 - Para `purchase_date`, `start_date` representa la fecha de compra/facturación y `next_renewal_date` se calcula inmediatamente.
 - Para `first_activation`, `start_date` y `next_renewal_date` pueden quedar vacías hasta la activación.
 - `redeem_deadline_date` permite registrar el límite de canje antes de la primera activación.
+- `cost` representa el costo de adquisición de la licencia; `sale_price` representa el precio de venta usado para ingresos y margen estimado.
 - No se crea un estado adicional para canje. Se usan los estados existentes:
 - `available` + `first_activation` + `start_date` vacía indica una licencia disponible para activar.
 - `available` + `purchase_date` + `start_date` definida indica una licencia disponible, pero con vigencia ya corriendo.
-- `expired` cubre vencimiento por `next_renewal_date` o por `redeem_deadline_date`.
-- La reserva y activación se bloquean si la licencia ya está vencida por renovación o por límite de canje.
+- `expired` cubre vencimiento por `next_renewal_date` o expiración manual confirmada por soporte.
+- La reserva y activación se bloquean si la licencia ya está vencida por renovación o si superó el límite de canje.
+- El límite de canje de licencias físicas no se marca automáticamente como `expired`; debe confirmarlo soporte cuando el proveedor rechaza la clave.
 - Si una licencia física/distribuidor no tiene fecha cierta de baja y el proveedor rechaza la activación, soporte puede marcarla manualmente como `expired`.
 - El backend prioriza la activación de licencias antiguas o en riesgo:
 - Para licencias online/oficiales, ordena por `next_renewal_date`.
@@ -258,7 +260,7 @@ POST /api/licenses/expire-overdue
 
 Reglas:
 
-- Marca como `expired` licencias con `next_renewal_date < CURRENT_DATE`.
+- Marca como `expired` licencias de compra/facturación con `next_renewal_date < CURRENT_DATE`.
 - Aplica a estados `available`, `reserved` y `activated`.
 - Guarda `expiration_date`.
 - Registra auditoría por licencia afectada.
@@ -276,6 +278,15 @@ GET /api/dashboard/alert-summary
 GET /api/dashboard/alerts
 GET /api/dashboard/renewals
 ```
+
+Indicadores comerciales:
+
+- Ingresos por licencias activadas.
+- Costo de licencias vendidas.
+- Margen estimado.
+- Valor del inventario disponible.
+- Costo mensual equivalente.
+- Proyección anual de costos.
 
 Alertas:
 

@@ -1,14 +1,41 @@
 const pool = require("../config/database");
 const { getPagination, paginatedResponse } = require("../utils/pagination");
+const { ensureLicenseSalePriceColumn } = require("../utils/schemaMigrations");
 
 const ALERT_COLORS = new Set(["green", "yellow", "red"]);
 
 async function getFinancialDashboard() {
-  const { rows } = await pool.query("SELECT * FROM vw_financial_dashboard");
+  await ensureLicenseSalePriceColumn();
+
+  const { rows } = await pool.query(
+    `
+      SELECT
+        COALESCE(SUM(sale_price) FILTER (WHERE active = TRUE AND status = 'activated'), 0)::NUMERIC(14,2) AS activated_revenue,
+        COALESCE(SUM(cost) FILTER (WHERE active = TRUE AND status = 'activated'), 0)::NUMERIC(14,2) AS sold_license_cost,
+        (
+          COALESCE(SUM(sale_price) FILTER (WHERE active = TRUE AND status = 'activated'), 0)
+          - COALESCE(SUM(cost) FILTER (WHERE active = TRUE AND status = 'activated'), 0)
+        )::NUMERIC(14,2) AS estimated_margin,
+        COALESCE(SUM(cost) FILTER (WHERE active = TRUE AND status = 'available'), 0)::NUMERIC(14,2) AS available_inventory_value,
+        COALESCE(SUM(CASE
+          WHEN billing_cycle = 'monthly' THEN cost
+          WHEN billing_cycle = 'annual' THEN cost / 12
+          ELSE 0 END) FILTER (WHERE active = TRUE AND status <> 'cancelled'), 0)::NUMERIC(14,2) AS monthly_equivalent_cost,
+        COALESCE(SUM(CASE
+          WHEN billing_cycle = 'monthly' THEN cost * 12
+          WHEN billing_cycle = 'annual' THEN cost
+          ELSE 0 END) FILTER (WHERE active = TRUE AND status <> 'cancelled'), 0)::NUMERIC(14,2) AS annual_cost_projection
+      FROM license_units
+    `
+  );
 
   return {
-    monthly_expense: rows[0]?.monthly_expense || "0.00",
-    annual_projection: rows[0]?.annual_projection || "0.00",
+    activated_revenue: rows[0]?.activated_revenue || "0.00",
+    sold_license_cost: rows[0]?.sold_license_cost || "0.00",
+    estimated_margin: rows[0]?.estimated_margin || "0.00",
+    available_inventory_value: rows[0]?.available_inventory_value || "0.00",
+    monthly_equivalent_cost: rows[0]?.monthly_equivalent_cost || "0.00",
+    annual_cost_projection: rows[0]?.annual_cost_projection || "0.00",
   };
 }
 

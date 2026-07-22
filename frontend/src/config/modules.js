@@ -13,9 +13,10 @@ export const modules = [
   { id: 'customers', label: 'Clientes' },
   { id: 'providers', label: 'Proveedores' },
   { id: 'users', label: 'Usuarios' },
-  { id: 'roles', label: 'Roles' },
-  { id: 'activations', label: 'Ya activadas' },
-  { id: 'audit', label: 'Auditoría' },
+	  { id: 'roles', label: 'Roles' },
+	  { id: 'activations', label: 'Ya activadas' },
+  { id: 'expiredLicenses', label: 'Expiradas' },
+	  { id: 'audit', label: 'Auditoría' },
 ]
 
 export const tableConfig = {
@@ -113,7 +114,7 @@ export const tableConfig = {
       ['active', 'Activo'],
     ],
   },
-  activations: {
+	  activations: {
     path: '/activations',
     title: 'Ya activadas',
     columns: [
@@ -126,6 +127,21 @@ export const tableConfig = {
       ['activation_date', 'Activación'],
       ['next_renewal_date', 'Vencimiento'],
       ['days_remaining', 'Días restantes'],
+    ],
+	  },
+  expiredLicenses: {
+    path: '/licenses',
+    title: 'Licencias expiradas',
+    fixedQuery: 'status=expired',
+    columns: [
+      ['commercial_identifier', 'ID comercial público'],
+      ['product_name', 'Producto'],
+      ['variant_name', 'Variante'],
+      ['masked_code', 'Clave única enmascarada'],
+      ['expiration_date', 'Expiración'],
+      ['activation_priority_reason', 'Motivo'],
+      ['responsible_user_name', 'Custodio'],
+      ['created_by_name', 'Registrado por'],
     ],
   },
   audit: {
@@ -225,7 +241,8 @@ export const formConfig = {
 	        disabledOnEditWhen: { status: 'activated' },
 	        showWhen: { validity_start_mode: 'first_activation' },
 	      },
-      { name: 'cost', label: 'Costo', type: 'number', min: 0, step: '0.01', required: true },
+	      { name: 'cost', label: 'Costo de adquisición', type: 'number', min: 0, step: '0.01', required: true },
+	      { name: 'sale_price', label: 'Precio de venta', type: 'number', min: 0, step: '0.01' },
       {
         name: 'billing_cycle',
         label: 'Ciclo',

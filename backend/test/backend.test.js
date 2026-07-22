@@ -591,7 +591,7 @@ describe("TrackSaaS backend", () => {
     assert.equal(new Date(activated.body.data.license.next_renewal_date).toISOString().slice(0, 10), originalRenewalDate);
   });
 
-  test("aplica reglas operativas de canje sin nuevo estado", async () => {
+	  test("aplica reglas operativas de canje sin nuevo estado", async () => {
     const pendingActivation = await createLicenseFixture("AVAILABLE-FIRST-ACTIVATION", {
       validityStartMode: "first_activation",
       startDate: null,
@@ -635,13 +635,52 @@ describe("TrackSaaS backend", () => {
     });
     assert.equal(expiredPurchaseActivation.response.status, 409);
 
-    const result = await licensesService.expireOverdueLicenses(adminUserId, "127.0.0.1");
-    const expiredIds = result.licenses.map((license) => license.id);
-    assert.ok(expiredIds.includes(expiredRedeem.id));
-    assert.ok(expiredIds.includes(expiredPurchase.id));
+	    const result = await licensesService.expireOverdueLicenses(adminUserId, "127.0.0.1");
+	    const expiredIds = result.licenses.map((license) => license.id);
+	    assert.equal(expiredIds.includes(expiredRedeem.id), false);
+	    assert.equal(expiredPurchase.status, "expired");
+	  });
+
+  test("edición de licencia purchase_date vencida cambia estado a expired", async () => {
+    const license = await createLicenseFixture("EDIT-AUTO-EXPIRED", {
+      validityStartMode: "purchase_date",
+      startDate: "2026-07-21",
+    });
+
+    const updated = await request(`/api/licenses/${license.id}`, {
+      method: "PUT",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        start_date: "2020-01-01",
+      }),
+    });
+
+    assert.equal(updated.response.status, 200);
+    assert.equal(updated.body.data.status, "expired");
+    assert.ok(updated.body.data.expiration_date);
   });
 
-  test("prioriza activación por fecha crítica más antigua", async () => {
+  test("edición de licencia first_activation no expira automáticamente por canje", async () => {
+    const license = await createLicenseFixture("EDIT-REDEEM-NO-AUTO-EXPIRED", {
+      validityStartMode: "first_activation",
+      startDate: null,
+      redeemDeadlineDate: "2027-12-31",
+    });
+
+    const updated = await request(`/api/licenses/${license.id}`, {
+      method: "PUT",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        redeem_deadline_date: "2025-01-01",
+      }),
+    });
+
+    assert.equal(updated.response.status, 200);
+    assert.equal(updated.body.data.status, "available");
+    assert.equal(new Date(updated.body.data.redeem_deadline_date).toISOString().slice(0, 10), "2025-01-01");
+  });
+
+	  test("prioriza activación por fecha crítica más antigua", async () => {
     const later = await createLicenseFixture("PRIORITY-LATER", {
       validityStartMode: "first_activation",
       startDate: null,
@@ -696,9 +735,11 @@ describe("TrackSaaS backend", () => {
       headers: jsonHeaders(),
     });
 
-    assert.equal(response.response.status, 200);
-    assert.ok(response.body.data.financial);
-    assert.ok(response.body.data.licensesByStatus);
+	    assert.equal(response.response.status, 200);
+	    assert.ok(response.body.data.financial);
+    assert.ok(Object.prototype.hasOwnProperty.call(response.body.data.financial, "activated_revenue"));
+    assert.ok(Object.prototype.hasOwnProperty.call(response.body.data.financial, "estimated_margin"));
+	    assert.ok(response.body.data.licensesByStatus);
     assert.ok(response.body.data.alerts);
   });
 

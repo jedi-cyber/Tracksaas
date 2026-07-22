@@ -9,8 +9,10 @@ import { formConfig, rolePermissions, tableConfig } from '../config/modules'
 
 function DataModule({ api, moduleId, setError, user }) {
   const config = tableConfig[moduleId]
-  const entityForm = formConfig[moduleId]
-  const [rows, setRows] = useState([])
+  const isLicenseModule = ['licenses', 'expiredLicenses'].includes(moduleId)
+  const isLicenseDetailModule = ['licenses', 'activations', 'expiredLicenses'].includes(moduleId)
+  const entityForm = formConfig[moduleId] || (isLicenseModule ? formConfig.licenses : null)
+	  const [rows, setRows] = useState([])
   const [pagination, setPagination] = useState(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -21,7 +23,7 @@ function DataModule({ api, moduleId, setError, user }) {
   const [activationRow, setActivationRow] = useState(null)
   const [guidedModal, setGuidedModal] = useState(null)
   const [reasonAction, setReasonAction] = useState(null)
-  const permissions = rolePermissions[user?.role?.name]?.[moduleId] || []
+  const permissions = rolePermissions[user?.role?.name]?.[moduleId] || (isLicenseModule ? rolePermissions[user?.role?.name]?.licenses : []) || []
   const licensePermissions = rolePermissions[user?.role?.name]?.licenses || []
   const canCreate = permissions.includes('create')
   const canUpdate = permissions.includes('update')
@@ -32,14 +34,15 @@ function DataModule({ api, moduleId, setError, user }) {
   async function load(searchOverride) {
     if (!config) return
     setLoading(true)
-    try {
-      const limit = ['licenses', 'activations'].includes(moduleId) ? 100 : 25
-      const effectiveSearch = searchOverride !== undefined ? searchOverride : searchTerm
-      const searchQuery = effectiveSearch.trim() ? `&search=${encodeURIComponent(effectiveSearch.trim())}` : ''
-      const body = await api.request(`${config.path}?limit=${limit}&includeInactive=true${searchQuery}`)
-      const nextRows = moduleId === 'licenses'
-        ? (body.data || []).filter((row) => ['available', 'reserved'].includes(row.status))
-        : body.data || []
+	    try {
+	      const limit = ['licenses', 'activations', 'expiredLicenses'].includes(moduleId) ? 100 : 25
+	      const effectiveSearch = searchOverride !== undefined ? searchOverride : searchTerm
+	      const searchQuery = effectiveSearch.trim() ? `&search=${encodeURIComponent(effectiveSearch.trim())}` : ''
+      const fixedQuery = config.fixedQuery ? `&${config.fixedQuery}` : ''
+	      const body = await api.request(`${config.path}?limit=${limit}&includeInactive=true${fixedQuery}${searchQuery}`)
+	      const nextRows = moduleId === 'licenses'
+	        ? (body.data || []).filter((row) => ['available', 'reserved'].includes(row.status))
+	        : body.data || []
       setRows(nextRows)
       setPagination(body.pagination || null)
     } catch (err) {
@@ -390,7 +393,7 @@ function DataModule({ api, moduleId, setError, user }) {
           )}
         </div>
         <div className="header-actions">
-          {['licenses', 'activations'].includes(moduleId) && (
+	          {['licenses', 'activations', 'expiredLicenses'].includes(moduleId) && (
             <input
               className="module-search"
               value={searchTerm}
@@ -398,7 +401,7 @@ function DataModule({ api, moduleId, setError, user }) {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') load()
               }}
-              placeholder={moduleId === 'activations' ? 'Buscar activada...' : 'Buscar licencia...'}
+	              placeholder={moduleId === 'activations' ? 'Buscar activada...' : 'Buscar licencia...'}
             />
           )}
           {entityForm && canCreate && moduleId !== 'licenses' && (
@@ -464,7 +467,7 @@ function DataModule({ api, moduleId, setError, user }) {
         />
       )}
 
-      {['licenses', 'activations'].includes(moduleId) && formMode === 'detail' && selectedRow && (
+      {isLicenseDetailModule && formMode === 'detail' && selectedRow && (
         <LicenseDetailModal
           api={api}
           license={moduleId === 'activations' ? { ...selectedRow, id: selectedRow.license_unit_id } : selectedRow}
@@ -476,7 +479,7 @@ function DataModule({ api, moduleId, setError, user }) {
         />
       )}
 
-      {entityForm && formMode && !(['licenses', 'activations'].includes(moduleId) && formMode === 'detail') && (
+      {entityForm && formMode && !(isLicenseDetailModule && formMode === 'detail') && (
         <EntityModal
           api={api}
           config={config}
@@ -547,10 +550,10 @@ function DataModule({ api, moduleId, setError, user }) {
           rows={rows}
           columns={config.columns}
 	          actions={
-	            entityForm || ['licenses', 'activations'].includes(moduleId)
+	            entityForm || ['licenses', 'activations', 'expiredLicenses'].includes(moduleId)
 	              ? (row) => (
 	                <div className="row-actions">
-	                  {moduleId === 'licenses'
+	                  {isLicenseModule
 	                    ? renderLicenseActions(row)
 	                    : moduleId === 'activations'
 	                      ? renderActivationActions(row)

@@ -74,7 +74,9 @@ function LicenseDetailModal({ api, license, setError, onClose }) {
               <DetailItem label="Fecha límite de canje" value={formatDate(current.redeem_deadline_date)} />
               <DetailItem label="Prioridad de atención" value={formatDate(current.activation_priority_date)} />
               <DetailItem label="Motivo de prioridad" value={formatValue(current.activation_priority_reason)} />
-              <DetailItem label="Costo" value={`${current.currency_code || ''} ${current.cost || '0.00'}`.trim()} />
+              <DetailItem label="Costo de adquisición" value={`${current.currency_code || ''} ${current.cost || '0.00'}`.trim()} />
+              <DetailItem label="Precio de venta" value={`${current.currency_code || ''} ${current.sale_price || current.cost || '0.00'}`.trim()} />
+              <DetailItem label="Margen estimado" value={`${current.currency_code || ''} ${calculateMargin(current)}`.trim()} />
               <DetailItem label="Ciclo" value={formatValue(current.billing_cycle)} />
             </div>
           </section>
@@ -193,7 +195,7 @@ function operationLabel(operation, action, previousStatus, nextStatus) {
 function operationDetail(operation, previousStatus, nextStatus, item) {
   if (operation === 'reserve') return 'La licencia quedó apartada para un uso futuro.'
   if (operation === 'release_reservation') return 'La licencia volvió a estar disponible.'
-  if (operation === 'expire_overdue') return 'El sistema la marcó vencida por fecha de renovación o límite de canje.'
+  if (operation === 'expire_overdue') return 'El sistema la marcó vencida por fecha de renovación/facturación.'
   if (item.new_values?.reason) return `Motivo: ${item.new_values.reason}`
   if (previousStatus && nextStatus && previousStatus !== nextStatus) {
     return `Estado anterior: ${formatValue(previousStatus)}. Estado nuevo: ${formatValue(nextStatus)}.`
@@ -236,6 +238,12 @@ function formatDate(value) {
 function formatDateTime(value) {
   if (!value) return '-'
   return new Date(value).toLocaleString()
+}
+
+function calculateMargin(license) {
+  const salePrice = Number(license.sale_price || license.cost || 0)
+  const cost = Number(license.cost || 0)
+  return (salePrice - cost).toFixed(2)
 }
 
 export default LicenseDetailModal

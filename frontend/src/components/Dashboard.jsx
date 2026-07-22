@@ -64,24 +64,40 @@ function Dashboard({ api, setError }) {
         <small>Requieren revisión</small>
       </div>
 
-      <div className="content-block half">
-        <div className="section-header">
-          <div>
-            <span className="eyebrow">Finanzas</span>
-            <h3>Costos proyectados</h3>
-          </div>
-        </div>
-        <div className="summary-list">
-          <div>
-            <span>Gasto mensual</span>
-            <strong>S/ {overview.financial.monthly_expense}</strong>
-          </div>
-          <div>
-            <span>Proyección anual</span>
-            <strong>S/ {overview.financial.annual_projection}</strong>
-          </div>
-        </div>
-      </div>
+	      <div className="content-block half">
+	        <div className="section-header">
+	          <div>
+	            <span className="eyebrow">Finanzas</span>
+	            <h3>Resumen financiero</h3>
+	          </div>
+	        </div>
+	        <div className="summary-list">
+	          <div>
+	            <span>Ingresos por licencias activadas</span>
+	            <strong>S/ {overview.financial.activated_revenue}</strong>
+	          </div>
+	          <div>
+	            <span>Costo de licencias vendidas</span>
+	            <strong>S/ {overview.financial.sold_license_cost}</strong>
+	          </div>
+	          <div>
+	            <span>Margen estimado</span>
+	            <strong>S/ {overview.financial.estimated_margin}</strong>
+	          </div>
+	          <div>
+	            <span>Valor del inventario disponible</span>
+	            <strong>S/ {overview.financial.available_inventory_value}</strong>
+	          </div>
+	          <div>
+	            <span>Costo mensual equivalente</span>
+	            <strong>S/ {overview.financial.monthly_equivalent_cost}</strong>
+	          </div>
+	          <div>
+	            <span>Proyección anual de costos</span>
+	            <strong>S/ {overview.financial.annual_cost_projection}</strong>
+	          </div>
+	        </div>
+	      </div>
 
       <div className="content-block half">
         <div className="section-header">

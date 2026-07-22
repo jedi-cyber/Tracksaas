@@ -24,8 +24,9 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
     validity_start_mode: 'purchase_date',
     start_date: today,
     redeem_deadline_date: '',
-    cost: '',
-    billing_cycle: 'annual',
+	    cost: '',
+    sale_price: '',
+	    billing_cycle: 'annual',
     currency_code: 'PEN',
     notes: '',
   })
@@ -172,8 +173,9 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
           redeem_deadline_date: isFirstActivation ? form.redeem_deadline_date : '',
           batch_id: Number(form.batch_id),
           responsible_user_id: Number(form.responsible_user_id),
-          cost: Number(form.cost),
-          next_renewal_date: isFirstActivation ? '' : calculateRenewalDate(),
+	          cost: Number(form.cost),
+          sale_price: form.sale_price === '' ? Number(form.cost) : Number(form.sale_price),
+	          next_renewal_date: isFirstActivation ? '' : calculateRenewalDate(),
         }),
       })
       await onCreated()
@@ -335,10 +337,15 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
 		                  </label>
 		                )}
 	
+		                <label>
+		                  Costo de adquisición
+	                  <input type="number" min="0" step="0.01" value={form.cost} onChange={(event) => updateField('cost', event.target.value)} required />
+	                </label>
+
 	                <label>
-	                  Costo
-                  <input type="number" min="0" step="0.01" value={form.cost} onChange={(event) => updateField('cost', event.target.value)} required />
-                </label>
+	                  Precio de venta
+	                  <input type="number" min="0" step="0.01" value={form.sale_price} onChange={(event) => updateField('sale_price', event.target.value)} placeholder="Si queda vacío, usa el costo" />
+	                </label>
 
                 <label>
                   Ciclo de cobro
@@ -374,7 +381,8 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
                 ) : (
                   <p><strong>Fecha límite de canje:</strong> {formatDate(form.redeem_deadline_date)}</p>
                 )}
-                <p><strong>Costo:</strong> {form.currency_code} {form.cost || '0'}</p>
+	                <p><strong>Costo:</strong> {form.currency_code} {form.cost || '0'}</p>
+	                <p><strong>Precio de venta:</strong> {form.currency_code} {form.sale_price || form.cost || '0'}</p>
                 <p><strong>Ciclo:</strong> {form.billing_cycle === 'monthly' ? 'Mensual' : 'Anual'}</p>
               </div>
             )}

@@ -197,6 +197,7 @@ CREATE TABLE IF NOT EXISTS license_units (
     activation_date TIMESTAMPTZ,
     expiration_date DATE,
     cost NUMERIC(14,2) NOT NULL,
+    sale_price NUMERIC(14,2) NOT NULL DEFAULT 0,
     billing_cycle VARCHAR(20) NOT NULL,
     currency_code CHAR(3) NOT NULL DEFAULT 'PEN',
     notes TEXT,
@@ -216,6 +217,7 @@ CREATE TABLE IF NOT EXISTS license_units (
     CONSTRAINT chk_license_status CHECK (status IN ('available','reserved','activated','expired','cancelled')),
     CONSTRAINT chk_license_validity_start_mode CHECK (validity_start_mode IN ('purchase_date','first_activation')),
     CONSTRAINT chk_license_cost CHECK (cost >= 0),
+    CONSTRAINT chk_license_sale_price CHECK (sale_price >= 0),
     CONSTRAINT chk_license_billing_cycle CHECK (billing_cycle IN ('monthly','annual')),
     CONSTRAINT chk_license_currency CHECK (currency_code ~ '^[A-Z]{3}$'),
     CONSTRAINT chk_license_dates CHECK (
@@ -250,6 +252,15 @@ ALTER TABLE license_units
         CHECK (validity_start_mode IN ('purchase_date','first_activation'));
 ALTER TABLE license_units
     ADD COLUMN IF NOT EXISTS redeem_deadline_date DATE;
+ALTER TABLE license_units
+    ADD COLUMN IF NOT EXISTS sale_price NUMERIC(14,2) NOT NULL DEFAULT 0;
+UPDATE license_units
+SET sale_price = cost
+WHERE sale_price = 0;
+ALTER TABLE license_units
+    DROP CONSTRAINT IF EXISTS chk_license_sale_price;
+ALTER TABLE license_units
+    ADD CONSTRAINT chk_license_sale_price CHECK (sale_price >= 0);
 ALTER TABLE license_units
     ALTER COLUMN start_date DROP NOT NULL;
 ALTER TABLE license_units
@@ -408,16 +419,21 @@ WHERE lu.active = TRUE
 
 CREATE OR REPLACE VIEW vw_financial_dashboard AS
 SELECT
+    COALESCE(SUM(sale_price) FILTER (WHERE active = TRUE AND status = 'activated'), 0)::NUMERIC(14,2) AS activated_revenue,
+    COALESCE(SUM(cost) FILTER (WHERE active = TRUE AND status = 'activated'), 0)::NUMERIC(14,2) AS sold_license_cost,
+    (
+      COALESCE(SUM(sale_price) FILTER (WHERE active = TRUE AND status = 'activated'), 0)
+      - COALESCE(SUM(cost) FILTER (WHERE active = TRUE AND status = 'activated'), 0)
+    )::NUMERIC(14,2) AS estimated_margin,
+    COALESCE(SUM(cost) FILTER (WHERE active = TRUE AND status = 'available'), 0)::NUMERIC(14,2) AS available_inventory_value,
     COALESCE(SUM(CASE
         WHEN billing_cycle = 'monthly' THEN cost
         WHEN billing_cycle = 'annual' THEN cost / 12
-        ELSE 0 END),0)::NUMERIC(14,2) AS monthly_expense,
+        ELSE 0 END) FILTER (WHERE active = TRUE AND status <> 'cancelled'), 0)::NUMERIC(14,2) AS monthly_equivalent_cost,
     COALESCE(SUM(CASE
         WHEN billing_cycle = 'monthly' THEN cost * 12
         WHEN billing_cycle = 'annual' THEN cost
-        ELSE 0 END),0)::NUMERIC(14,2) AS annual_projection
-FROM license_units
-WHERE active = TRUE
-  AND status IN ('available','reserved','activated');
+        ELSE 0 END) FILTER (WHERE active = TRUE AND status <> 'cancelled'), 0)::NUMERIC(14,2) AS annual_cost_projection
+FROM license_units;
 
 COMMIT;
