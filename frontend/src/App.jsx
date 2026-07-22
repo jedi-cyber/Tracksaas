@@ -9,6 +9,33 @@ import './App.css'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api'
 
+const navIconPaths = {
+  dashboard: 'M4 11L12 4l8 7v8a1 1 0 0 1-1 1h-5v-5h-4v5H5a1 1 0 0 1-1-1z',
+  licenses: 'M7 4h10l3 3v13H7z M17 4v4h4 M10 11h7 M10 15h5',
+  catalog: 'M4 6h16v4H4z M4 14h16v4H4z M7 10v4 M17 10v4',
+  products: 'M4 8l8-4 8 4-8 4z M4 8v8l8 4 8-4V8',
+  variants: 'M7 5h10v4H7z M5 15h6v4H5z M13 15h6v4h-6z M12 9v4 M8 13h8',
+  batches: 'M5 7h14v4H5z M5 13h14v4H5z M8 7v10 M16 7v10',
+  customers: 'M8 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M2 21a6 6 0 0 1 12 0 M17 11a3 3 0 1 0 0-6 M15 21a5 5 0 0 1 7-4.5',
+  providers: 'M3 20h18 M5 20V8l7-4 7 4v12 M9 20v-6h6v6 M8 10h1 M15 10h1',
+  users: 'M8 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M2 21a6 6 0 0 1 12 0 M17 9a3 3 0 1 0 0-6 M16 21h6',
+  roles: 'M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z M9 12l2 2 4-5',
+  activations: 'M12 3a9 9 0 1 0 9 9 M12 7v6l4 2 M16 4h5v5',
+  expiredLicenses: 'M12 3a9 9 0 1 0 9 9 M12 7v5l3 3 M16 16l4 4 M20 16l-4 4',
+  cancelledLicenses: 'M6 6l12 12 M18 6L6 18 M4 4h16v16H4z',
+  audit: 'M6 4h12v16H6z M9 8h6 M9 12h6 M9 16h4',
+}
+
+function NavIcon({ moduleId }) {
+  return (
+    <span className={`nav-icon nav-icon-${moduleId}`} aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d={navIconPaths[moduleId] || navIconPaths.dashboard} />
+      </svg>
+    </span>
+  )
+}
+
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem('tracksaas_token'))
   const [user, setUser] = useState(null)
@@ -219,7 +246,10 @@ function App() {
                       setOpenGroups((current) => ({ ...current, [module.id]: !current[module.id] }))
                     }}
                   >
-                    <span>{module.label}</span>
+                    <span className="nav-item-label">
+                      <NavIcon moduleId={module.id} />
+                      <span>{module.label}</span>
+                    </span>
                     <span className="nav-chevron">{isOpen ? '▾' : '▸'}</span>
                   </button>
                   {isOpen && (
@@ -231,7 +261,10 @@ function App() {
                           className={activeModule === child.id ? 'active' : ''}
                           onClick={() => selectModule(child.id)}
                         >
-                          {child.label}
+                          <span className="nav-item-label">
+                            <NavIcon moduleId={child.id} />
+                            <span>{child.label}</span>
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -249,7 +282,10 @@ function App() {
                   selectModule(module.id)
                 }}
               >
-                {module.label}
+                <span className="nav-item-label">
+                  <NavIcon moduleId={module.id} />
+                  <span>{module.label}</span>
+                </span>
               </button>
             )
           })}
@@ -286,7 +322,7 @@ function App() {
             onBack={closeNotificationsModule}
           />
         ) : activeModule === 'dashboard' ? (
-          <Dashboard api={api} setError={notify} />
+          <Dashboard api={api} setError={notify} onNavigate={selectModule} />
         ) : (
           <DataModule
             api={api}

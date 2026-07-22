@@ -377,6 +377,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     old_values JSONB,
     new_values JSONB,
     ip_address INET,
+    retain_forever BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_audit_user FOREIGN KEY (user_id)
         REFERENCES users(id) ON DELETE SET NULL,
@@ -385,6 +386,12 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_logs(entity_name,entity_id);
 CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(created_at);
+ALTER TABLE audit_logs
+    ADD COLUMN IF NOT EXISTS retain_forever BOOLEAN NOT NULL DEFAULT FALSE;
+UPDATE audit_logs
+SET retain_forever = TRUE
+WHERE entity_name IN ('license_units', 'license_activations');
+CREATE INDEX IF NOT EXISTS idx_audit_cleanup ON audit_logs(created_at, retain_forever);
 
 DROP VIEW IF EXISTS vw_license_alerts;
 CREATE VIEW vw_license_alerts AS

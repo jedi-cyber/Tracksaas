@@ -12,7 +12,6 @@ function NotificationModule({ notifications, onRemove, onClear, onBack }) {
     <section className="content-block">
       <div className="section-header">
         <div>
-          <span className="eyebrow">Módulo interno</span>
           <h3>Notificaciones</h3>
           <p>{notifications.length} registros recientes</p>
         </div>

@@ -40,7 +40,11 @@ function DataTable({ rows, columns, actions, moduleId }) {
               className={row.active === false || row.status === 'cancelled' ? 'inactive-row' : ''}
             >
               {columns.map(([key, label]) => (
-                <td key={key} data-label={label}>
+                <td
+                  key={key}
+                  data-label={label}
+                  className={`table-cell-${key}${key === 'action' ? ` action-${String(row[key] || 'default').toLowerCase()}` : ''}`}
+                >
                   {moduleId === 'roles' && key === 'active' ? (
                     <span className={`state-dot ${row[key] ? 'state-dot-active' : 'state-dot-inactive'}`} title={row[key] ? 'Activado' : 'Desactivado'} aria-label={row[key] ? 'Activado' : 'Desactivado'} />
                   ) : key === 'status' || key === 'alert_color' ? (

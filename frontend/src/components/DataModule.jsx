@@ -44,6 +44,7 @@ function DataModule({ api, moduleId, setError, user }) {
   const [guidedModal, setGuidedModal] = useState(null)
   const [reasonAction, setReasonAction] = useState(null)
   const [confirmAction, setConfirmAction] = useState(null)
+  const [auditCleanupPreview, setAuditCleanupPreview] = useState(null)
   const permissions = rolePermissions[user?.role?.name]?.[moduleId] || (isLicenseModule ? rolePermissions[user?.role?.name]?.licenses : []) || []
   const licensePermissions = rolePermissions[user?.role?.name]?.licenses || []
   const canCreate = permissions.includes('create')
@@ -121,6 +122,7 @@ function DataModule({ api, moduleId, setError, user }) {
     setGuidedModal(null)
     setReasonAction(null)
     setConfirmAction(null)
+    setAuditCleanupPreview(null)
     setSearchTerm('')
     setFilters(EMPTY_FILTERS)
     setPage(1)
@@ -148,6 +150,41 @@ function DataModule({ api, moduleId, setError, user }) {
   function searchCurrentModule() {
     setPage(1)
     load(undefined, filters, 1)
+  }
+
+  async function previewAuditCleanup() {
+    try {
+      const body = await api.request('/audit-logs/cleanup-preview?retentionDays=365')
+      setAuditCleanupPreview(body.data)
+      setError(`Registros candidatos para limpieza: ${body.data.candidateCount}`, 'info')
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  function confirmAuditCleanup() {
+    setConfirmAction({
+      title: 'Limpiar auditoría antigua',
+      confirmLabel: 'Limpiar auditoría',
+      danger: true,
+      description: 'Se eliminarán solo registros de auditoría no críticos con más de 365 días. La auditoría operativa de licencias se conserva.',
+      onConfirm: executeAuditCleanup,
+    })
+  }
+
+  async function executeAuditCleanup() {
+    try {
+      const body = await api.request('/audit-logs/cleanup', {
+        method: 'POST',
+        body: JSON.stringify({ retentionDays: 365 }),
+      })
+      setConfirmAction(null)
+      setAuditCleanupPreview(null)
+      await load()
+      setError(`Auditoría limpiada. Registros eliminados: ${body.data.deletedCount}`, 'success')
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   function changePage(nextPage) {
@@ -646,10 +683,9 @@ function DataModule({ api, moduleId, setError, user }) {
   }
 
   return (
-    <section className="content-block">
+    <section className={`content-block module-${moduleId}`}>
       <div className="section-header">
         <div>
-          <span className="eyebrow">Módulo</span>
           <h3>{config.title}</h3>
           {pagination && (
             <p>{pagination.total} registros encontrados</p>
@@ -686,8 +722,25 @@ function DataModule({ api, moduleId, setError, user }) {
           <button type="button" className="secondary-button" onClick={searchCurrentModule}>
             {searchTerm.trim() ? 'Buscar' : 'Actualizar'}
           </button>
+          {moduleId === 'audit' && (
+            <>
+              <button type="button" className="secondary-button" onClick={previewAuditCleanup}>
+                Simular limpieza
+              </button>
+              <button type="button" className="danger-button" onClick={confirmAuditCleanup}>
+                Limpiar antigua
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {moduleId === 'audit' && auditCleanupPreview && (
+        <div className="guide-text">
+          Candidatos no críticos: {auditCleanupPreview.candidateCount}. Retención: {auditCleanupPreview.retentionDays} días.
+          {auditCleanupPreview.oldestDate ? ` Registro más antiguo: ${String(auditCleanupPreview.oldestDate).slice(0, 10)}.` : ''}
+        </div>
+      )}
 
       {renderOperationalFilters()}
 

@@ -222,12 +222,12 @@ WITH demo_licenses AS (
     SELECT *
     FROM (
         VALUES
-            ('LOT-ESET-PRE-2026-001', 'Operador de Licencias', 'ESET Premium disponible', 'ESET-PRE-DEMO-001', 'ABCD-EFGH-IJKL-MNOP-QRST', 'available', 'first_activation', NULL::DATE, NULL::DATE, CURRENT_DATE + 180, NULL::TIMESTAMPTZ, NULL::DATE, 95.00::NUMERIC, 145.00::NUMERIC, 'annual', 'Licencia física disponible. La vigencia empezará al activar.'),
+            ('LOT-ESET-PRE-2026-001', 'Operador de Licencias', 'ESET Premium disponible', 'ESET-PRE-DEMO-001', 'ZBCD-EFGH-IJKL-MNOP-QRST', 'available', 'first_activation', NULL::DATE, NULL::DATE, CURRENT_DATE + 180, NULL::TIMESTAMPTZ, NULL::DATE, 95.00::NUMERIC, 145.00::NUMERIC, 'annual', 'Licencia física disponible. La vigencia empezará al activar.'),
             ('LOT-ESET-PRE-2026-001', 'Operador de Licencias', 'ESET Premium disponible antigua', 'ESET-PRE-DEMO-002', 'BCDE-FGHI-JKLM-NOPQ-RSTU', 'available', 'first_activation', NULL::DATE, NULL::DATE, CURRENT_DATE + 45, NULL::TIMESTAMPTZ, NULL::DATE, 95.00::NUMERIC, 145.00::NUMERIC, 'annual', 'Disponible con prioridad mayor por fecha de canje más cercana.'),
             ('LOT-WIN11-PRO-2026-001', 'Operador de Licencias', 'Windows 11 Pro reservado', 'WIN11-PRO-DEMO-001', '12345-67890-ABCDE-FGHIJ-KLMNO', 'reserved', 'first_activation', NULL::DATE, NULL::DATE, CURRENT_DATE + 120, NULL::TIMESTAMPTZ, NULL::DATE, 420.00::NUMERIC, 620.00::NUMERIC, 'annual', 'Reservada para instalación programada.'),
-            ('LOT-M365-BASIC-2026-001', 'Operador de Licencias', 'Microsoft 365 activada', 'M365-BASIC-DEMO-001', '23456-78901-BCDEF-GHIJK-LMNOP', 'activated', 'purchase_date', CURRENT_DATE - 10, CURRENT_DATE + 60, NULL::DATE, CURRENT_TIMESTAMP - INTERVAL '5 days', NULL::DATE, 23.00::NUMERIC, 39.00::NUMERIC, 'monthly', 'Activada para cliente corporativo demo.'),
-            ('LOT-ADOBE-CC-2025-001', 'Operador de Licencias', 'Adobe Creative Cloud por vencer', 'ADOBE-CC-DEMO-001', '1111-2222-3333-4444-5555-6666', 'activated', 'purchase_date', CURRENT_DATE - 350, CURRENT_DATE + 15, NULL::DATE, CURRENT_TIMESTAMP - INTERVAL '330 days', NULL::DATE, 1400.00::NUMERIC, 1950.00::NUMERIC, 'annual', 'Próxima a vencer en 15 días para validar alertas amarillas.'),
-            ('LOT-KASP-STD-2025-001', 'Operador de Licencias', 'Kaspersky vencida', 'KASP-STD-DEMO-001', 'ABCDE12345FGHIJ67890', 'expired', 'purchase_date', CURRENT_DATE - 410, CURRENT_DATE - 45, NULL::DATE, NULL::TIMESTAMPTZ, CURRENT_DATE - 45, 60.00::NUMERIC, 105.00::NUMERIC, 'annual', 'Vencida por superar su periodo de vigencia. Motivo: proveedor rechazó la clave por antigüedad.'),
+            ('LOT-M365-BASIC-2026-001', 'Operador de Licencias', 'Microsoft 365 activada', 'M365-BASIC-DEMO-001', '93456-78901-BCDEF-GHIJK-LMNOP', 'activated', 'purchase_date', CURRENT_DATE - 10, CURRENT_DATE + 60, NULL::DATE, CURRENT_TIMESTAMP - INTERVAL '5 days', NULL::DATE, 23.00::NUMERIC, 39.00::NUMERIC, 'monthly', 'Activada para cliente corporativo demo.'),
+            ('LOT-ADOBE-CC-2025-001', 'Operador de Licencias', 'Adobe Creative Cloud por vencer', 'ADOBE-CC-DEMO-001', '9111-2222-3333-4444-5555-6666', 'activated', 'purchase_date', CURRENT_DATE - 350, CURRENT_DATE + 15, NULL::DATE, CURRENT_TIMESTAMP - INTERVAL '330 days', NULL::DATE, 1400.00::NUMERIC, 1950.00::NUMERIC, 'annual', 'Próxima a vencer en 15 días para validar alertas amarillas.'),
+            ('LOT-KASP-STD-2025-001', 'Operador de Licencias', 'Kaspersky vencida', 'KASP-STD-DEMO-001', 'ZBCDE12345FGHIJ67890', 'expired', 'purchase_date', CURRENT_DATE - 410, CURRENT_DATE - 45, NULL::DATE, NULL::TIMESTAMPTZ, CURRENT_DATE - 45, 60.00::NUMERIC, 105.00::NUMERIC, 'annual', 'Vencida por superar su periodo de vigencia. Motivo: proveedor rechazó la clave por antigüedad.'),
             ('LOT-ESET-ESS-2026-001', 'Operador de Licencias', 'ESET Essential cancelada', 'ESET-ESS-DEMO-001', 'CDEF-GHIJ-KLMN-OPQR-STUV', 'cancelled', 'first_activation', NULL::DATE, NULL::DATE, CURRENT_DATE + 220, NULL::TIMESTAMPTZ, NULL::DATE, 70.00::NUMERIC, 115.00::NUMERIC, 'annual', 'Cancelada. Motivo: clave reportada como duplicada por el proveedor.')
     ) AS data(batch_number, responsible_name, name, commercial_identifier, license_code, status, validity_start_mode, start_date, next_renewal_date, redeem_deadline_date, activation_date, expiration_date, cost, sale_price, billing_cycle, notes)
 )
@@ -362,8 +362,8 @@ SET
 -- =========================================================
 -- 10. Auditoría demo
 -- =========================================================
-INSERT INTO audit_logs (user_id, entity_name, entity_id, action, old_values, new_values)
-SELECT admin.id, 'license_units', lu.id, 'create', NULL, jsonb_build_object('demo', TRUE, 'status', lu.status, 'license', lu.name)
+INSERT INTO audit_logs (user_id, entity_name, entity_id, action, old_values, new_values, retain_forever)
+SELECT admin.id, 'license_units', lu.id, 'create', NULL, jsonb_build_object('demo', TRUE, 'status', lu.status, 'license', lu.name), TRUE
 FROM license_units lu
 CROSS JOIN (SELECT id FROM users WHERE email = 'admin@tracksaas.local') admin
 WHERE lu.commercial_identifier IN (
@@ -384,8 +384,8 @@ AND NOT EXISTS (
       AND al.new_values ->> 'demo' = 'true'
 );
 
-INSERT INTO audit_logs (user_id, entity_name, entity_id, action, old_values, new_values)
-SELECT operator.id, 'license_units', lu.id, 'activate', jsonb_build_object('status', 'available'), jsonb_build_object('demo', TRUE, 'status', 'activated', 'license', lu.name)
+INSERT INTO audit_logs (user_id, entity_name, entity_id, action, old_values, new_values, retain_forever)
+SELECT operator.id, 'license_units', lu.id, 'activate', jsonb_build_object('status', 'available'), jsonb_build_object('demo', TRUE, 'status', 'activated', 'license', lu.name), TRUE
 FROM license_units lu
 CROSS JOIN (SELECT id FROM users WHERE email = 'licencias@tracksaas.local') operator
 WHERE lu.commercial_identifier IN ('M365-BASIC-DEMO-001', 'ADOBE-CC-DEMO-001')
@@ -398,8 +398,8 @@ AND NOT EXISTS (
       AND al.new_values ->> 'demo' = 'true'
 );
 
-INSERT INTO audit_logs (user_id, entity_name, entity_id, action, old_values, new_values)
-SELECT operator.id, 'license_units', lu.id, 'update', jsonb_build_object('status', 'available'), jsonb_build_object('demo', TRUE, 'operation', 'reserve', 'reserved_for', jsonb_build_object('id', c.id, 'name', c.name), 'reservation_expires_at', lu.reservation_expires_at, 'status', 'reserved')
+INSERT INTO audit_logs (user_id, entity_name, entity_id, action, old_values, new_values, retain_forever)
+SELECT operator.id, 'license_units', lu.id, 'update', jsonb_build_object('status', 'available'), jsonb_build_object('demo', TRUE, 'operation', 'reserve', 'reserved_for', jsonb_build_object('id', c.id, 'name', c.name), 'reservation_expires_at', lu.reservation_expires_at, 'status', 'reserved'), TRUE
 FROM license_units lu
 JOIN customers c ON c.id = lu.reserved_customer_id
 CROSS JOIN (SELECT id FROM users WHERE email = 'licencias@tracksaas.local') operator
@@ -413,8 +413,8 @@ AND NOT EXISTS (
       AND al.new_values ->> 'operation' = 'reserve'
 );
 
-INSERT INTO audit_logs (user_id, entity_name, entity_id, action, old_values, new_values)
-SELECT operator.id, 'license_units', lu.id, 'update', jsonb_build_object('status', 'available'), jsonb_build_object('demo', TRUE, 'operation', 'mark_expired', 'reason', 'Proveedor rechazó la clave por antigüedad.', 'status', 'expired')
+INSERT INTO audit_logs (user_id, entity_name, entity_id, action, old_values, new_values, retain_forever)
+SELECT operator.id, 'license_units', lu.id, 'update', jsonb_build_object('status', 'available'), jsonb_build_object('demo', TRUE, 'operation', 'mark_expired', 'reason', 'Proveedor rechazó la clave por antigüedad.', 'status', 'expired'), TRUE
 FROM license_units lu
 CROSS JOIN (SELECT id FROM users WHERE email = 'licencias@tracksaas.local') operator
 WHERE lu.commercial_identifier = 'KASP-STD-DEMO-001'
@@ -427,8 +427,8 @@ AND NOT EXISTS (
       AND al.new_values ->> 'operation' = 'mark_expired'
 );
 
-INSERT INTO audit_logs (user_id, entity_name, entity_id, action, old_values, new_values)
-SELECT operator.id, 'license_units', lu.id, 'cancel', jsonb_build_object('status', 'available'), jsonb_build_object('demo', TRUE, 'operation', 'cancel', 'reason', 'Clave reportada como duplicada por el proveedor.', 'status', 'cancelled')
+INSERT INTO audit_logs (user_id, entity_name, entity_id, action, old_values, new_values, retain_forever)
+SELECT operator.id, 'license_units', lu.id, 'cancel', jsonb_build_object('status', 'available'), jsonb_build_object('demo', TRUE, 'operation', 'cancel', 'reason', 'Clave reportada como duplicada por el proveedor.', 'status', 'cancelled'), TRUE
 FROM license_units lu
 CROSS JOIN (SELECT id FROM users WHERE email = 'licencias@tracksaas.local') operator
 WHERE lu.commercial_identifier = 'ESET-ESS-DEMO-001'

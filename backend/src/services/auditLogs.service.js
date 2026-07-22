@@ -19,6 +19,7 @@ function getAuditSelect() {
       al.old_values,
       al.new_values,
       al.ip_address::TEXT AS ip_address,
+      al.retain_forever,
       al.created_at,
       u.name AS user_name,
       u.email AS user_email
@@ -84,7 +85,89 @@ async function getAuditLog(id) {
   return rows[0];
 }
 
+function retentionDaysFromQuery(query) {
+  const days = Number.parseInt(query.retentionDays, 10) || 365;
+
+  if (days < 30) {
+    throw apiError("La retención mínima de auditoría es de 30 días");
+  }
+
+  if (days > 3650) {
+    throw apiError("La retención máxima permitida es de 3650 días");
+  }
+
+  return days;
+}
+
+async function cleanupPreview(query) {
+  const retentionDays = retentionDaysFromQuery(query);
+  const { rows } = await pool.query(
+    `
+      SELECT
+        COUNT(*)::INT AS candidate_count,
+        MIN(created_at) AS oldest_date,
+        MAX(created_at) AS newest_date,
+        $1::INT AS retention_days
+      FROM audit_logs
+      WHERE retain_forever = FALSE
+        AND created_at < CURRENT_TIMESTAMP - ($1::INT * INTERVAL '1 day')
+    `,
+    [retentionDays]
+  );
+
+  return {
+    retentionDays,
+    candidateCount: rows[0]?.candidate_count || 0,
+    oldestDate: rows[0]?.oldest_date || null,
+    newestDate: rows[0]?.newest_date || null,
+  };
+}
+
+async function cleanupAuditLogs(query) {
+  const retentionDays = retentionDaysFromQuery(query);
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const preview = await client.query(
+      `
+        SELECT COUNT(*)::INT AS candidate_count
+        FROM audit_logs
+        WHERE retain_forever = FALSE
+          AND created_at < CURRENT_TIMESTAMP - ($1::INT * INTERVAL '1 day')
+      `,
+      [retentionDays]
+    );
+
+    const deleteResult = await client.query(
+      `
+        DELETE FROM audit_logs
+        WHERE retain_forever = FALSE
+          AND created_at < CURRENT_TIMESTAMP - ($1::INT * INTERVAL '1 day')
+        RETURNING id
+      `,
+      [retentionDays]
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      retentionDays,
+      candidateCount: preview.rows[0]?.candidate_count || 0,
+      deletedCount: deleteResult.rowCount,
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   listAuditLogs,
   getAuditLog,
+  cleanupPreview,
+  cleanupAuditLogs,
 };

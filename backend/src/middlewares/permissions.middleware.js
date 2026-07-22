@@ -7,7 +7,7 @@ const RESOURCE_PERMISSIONS = {
     viewer: ["read"],
   },
   auditLogs: {
-    administrator: ["read"],
+    administrator: ["read", "delete"],
     license_user: [],
     viewer: [],
   },
@@ -59,6 +59,14 @@ const RESOURCE_PERMISSIONS = {
 };
 
 function actionFromRequest(req, resourceName) {
+  if (
+    resourceName === "auditLogs" &&
+    req.method === "POST" &&
+    req.path.split("/").filter(Boolean).includes("cleanup")
+  ) {
+    return "delete";
+  }
+
   if (
     resourceName === "licenses" &&
     req.method === "POST" &&

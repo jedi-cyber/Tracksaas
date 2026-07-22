@@ -3,7 +3,7 @@ import DataTable from './DataTable'
 import { EmptyState, LoadingState } from './StateMessage'
 import { formatValue, statusClass } from '../utils/formatters'
 
-function Dashboard({ api, setError }) {
+function Dashboard({ api, setError, onNavigate }) {
   const [overview, setOverview] = useState(null)
   const [loading, setLoading] = useState(true)
   const [lastAlertNoticeKey, setLastAlertNoticeKey] = useState('')
@@ -93,27 +93,31 @@ function Dashboard({ api, setError }) {
       </div>
 
       <div className="metric metric-primary">
+        <span className="metric-icon" aria-hidden="true">LA</span>
         <span>Licencias por activar</span>
         <strong>{pendingActivation}</strong>
         <small>Disponibles y reservadas</small>
       </div>
       <div className="metric">
+        <span className="metric-icon" aria-hidden="true">LU</span>
         <span>Licencias en uso</span>
         <strong>{activated}</strong>
         <small>{activationRate}% del inventario</small>
       </div>
       <div className={`metric ${operationalRisk ? 'metric-warning' : ''}`}>
+        <span className="metric-icon" aria-hidden="true">RO</span>
         <span>Riesgo operativo</span>
         <strong>{operationalRisk}</strong>
         <small>Rojas y amarillas</small>
       </div>
       <div className={`metric ${expired ? 'metric-danger' : ''}`}>
+        <span className="metric-icon" aria-hidden="true">LV</span>
         <span>Licencias vencidas</span>
         <strong>{expired}</strong>
         <small>Requieren revisión</small>
       </div>
 
-      <div className="content-block half">
+      <div className="content-block half dashboard-finance-card">
         <div className="section-header">
           <div>
             <span className="eyebrow">Finanzas</span>
@@ -150,7 +154,7 @@ function Dashboard({ api, setError }) {
         </div>
       </div>
 
-      <div className="content-block half">
+      <div className="content-block half dashboard-catalog-card">
         <div className="section-header">
           <div>
             <span className="eyebrow">Inventario</span>
@@ -158,16 +162,28 @@ function Dashboard({ api, setError }) {
           </div>
         </div>
         <div className="summary-list compact">
-          <div><span>Productos</span><strong>{inventory.products}</strong></div>
-          <div><span>Variantes</span><strong>{inventory.variants}</strong></div>
-          <div><span>Lotes</span><strong>{inventory.batches}</strong></div>
-          <div><span>Proveedores</span><strong>{inventory.providers}</strong></div>
-          <div><span>Clientes</span><strong>{inventory.customers}</strong></div>
-          <div><span>Licencias</span><strong>{inventory.licenses}</strong></div>
+          <button type="button" className="summary-link-card" onClick={() => onNavigate?.('products')}>
+            <span>Productos</span><strong>{inventory.products}</strong>
+          </button>
+          <button type="button" className="summary-link-card" onClick={() => onNavigate?.('variants')}>
+            <span>Variantes</span><strong>{inventory.variants}</strong>
+          </button>
+          <button type="button" className="summary-link-card" onClick={() => onNavigate?.('batches')}>
+            <span>Lotes</span><strong>{inventory.batches}</strong>
+          </button>
+          <button type="button" className="summary-link-card" onClick={() => onNavigate?.('providers')}>
+            <span>Proveedores</span><strong>{inventory.providers}</strong>
+          </button>
+          <button type="button" className="summary-link-card" onClick={() => onNavigate?.('customers')}>
+            <span>Clientes</span><strong>{inventory.customers}</strong>
+          </button>
+          <button type="button" className="summary-link-card" onClick={() => onNavigate?.('licenses')}>
+            <span>Licencias</span><strong>{inventory.licenses}</strong>
+          </button>
         </div>
       </div>
 
-      <div className="content-block half">
+      <div className="content-block half dashboard-alerts-card">
         <div className="section-header">
           <div>
             <span className="eyebrow">Alertas</span>
@@ -184,7 +200,7 @@ function Dashboard({ api, setError }) {
         </div>
       </div>
 
-      <div className="content-block half">
+      <div className="content-block half dashboard-insights-card">
         <div className="section-header">
           <div>
             <span className="eyebrow">Resumen</span>
