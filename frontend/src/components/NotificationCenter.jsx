@@ -13,6 +13,7 @@ function NotificationCenter({ notifications, onDismiss }) {
 
   function notificationTitle(type) {
     if (type === 'error') return 'Error'
+    if (type === 'alert') return 'Alerta operativa'
     if (type === 'success') return 'Operación exitosa'
     return 'Mensaje'
   }

@@ -29,6 +29,7 @@ export const tableConfig = {
       ['variant_name', 'Variante'],
       ['masked_code', 'Clave única enmascarada'],
       ['status', 'Estado'],
+      ['reserved_customer_name', 'Reservada para'],
       ['activation_priority_date', 'Atender antes de'],
       ['activation_priority_reason', 'Motivo'],
       ['responsible_user_name', 'Custodio'],

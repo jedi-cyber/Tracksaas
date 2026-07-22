@@ -6,6 +6,7 @@ import EntityModal from './EntityModal'
 import LicenseDetailModal from './LicenseDetailModal'
 import LicenseWizard from './LicenseWizard'
 import ReasonModal from './ReasonModal'
+import ReservationModal from './ReservationModal'
 import { EmptyState, LoadingState } from './StateMessage'
 import { formConfig, rolePermissions, tableConfig } from '../config/modules'
 import { formatValue } from '../utils/formatters'
@@ -39,6 +40,7 @@ function DataModule({ api, moduleId, setError, user }) {
   const [formMode, setFormMode] = useState(null)
   const [selectedRow, setSelectedRow] = useState(null)
   const [activationRow, setActivationRow] = useState(null)
+  const [reservationRow, setReservationRow] = useState(null)
   const [guidedModal, setGuidedModal] = useState(null)
   const [reasonAction, setReasonAction] = useState(null)
   const [confirmAction, setConfirmAction] = useState(null)
@@ -115,6 +117,7 @@ function DataModule({ api, moduleId, setError, user }) {
     setShowLicenseWizard(false)
     setLicenseWizardInitialValues({})
     setActivationRow(null)
+    setReservationRow(null)
     setGuidedModal(null)
     setReasonAction(null)
     setConfirmAction(null)
@@ -330,7 +333,7 @@ function DataModule({ api, moduleId, setError, user }) {
             </button>
           )}
           {permissions.includes('reserve') && (
-            <button type="button" onClick={() => licenseAction(row.id, 'reserve')}>
+            <button type="button" onClick={() => setReservationRow(row)}>
               Reservar
             </button>
           )}
@@ -714,6 +717,21 @@ function DataModule({ api, moduleId, setError, user }) {
           onActivated={async () => {
             setActivationRow(null)
             await load()
+          }}
+        />
+      )}
+
+      {reservationRow && (
+        <ReservationModal
+          api={api}
+          license={reservationRow}
+          setError={setError}
+          user={user}
+          onClose={() => setReservationRow(null)}
+          onReserved={async () => {
+            setReservationRow(null)
+            await load()
+            setError('Licencia reservada.', 'success')
           }}
         />
       )}

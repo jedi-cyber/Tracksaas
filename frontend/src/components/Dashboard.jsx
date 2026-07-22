@@ -31,11 +31,11 @@ function Dashboard({ api, setError }) {
 
     setLastAlertNoticeKey(noticeKey)
     if (red) {
-      setError(`Hay ${red} licencia(s) vencida(s) y ${yellow} próxima(s) a vencer. Revisa Alertas operativas.`, 'error')
+      setError(`Hay ${red} licencia(s) vencida(s) y ${yellow} próxima(s) a vencer. Revisa Alertas operativas.`, 'alert')
       return
     }
 
-    setError(`Hay ${yellow} licencia(s) próximas a vencer en 30 días o menos.`, 'info')
+    setError(`Hay ${yellow} licencia(s) próximas a vencer en 30 días o menos.`, 'alert')
   }
 
   async function expireOverdue() {

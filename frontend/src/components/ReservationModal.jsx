@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import Modal from './Modal'
 
-function ActivationModal({ api, license, setError, onClose, onActivated, user }) {
+function ReservationModal({ api, license, setError, onClose, onReserved, user }) {
   const [customers, setCustomers] = useState([])
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    customer_id: license?.reserved_customer_id ? String(license.reserved_customer_id) : '',
-    device_reference: '',
-    support_reference: '',
+    customer_id: '',
+    reservation_expires_at: '',
     notes: '',
   })
 
@@ -24,18 +23,25 @@ function ActivationModal({ api, license, setError, onClose, onActivated, user })
 
   async function submit(event) {
     event.preventDefault()
+
+    if (!form.customer_id) {
+      setError('Selecciona el cliente para quien se reservará la licencia.')
+      return
+    }
+
     setSaving(true)
     setError('')
 
     try {
-      await api.request(`/licenses/${license.id}/activate`, {
+      await api.request(`/licenses/${license.id}/reserve`, {
         method: 'POST',
         body: JSON.stringify({
-          ...form,
-          customer_id: form.customer_id ? Number(form.customer_id) : null,
+          customer_id: Number(form.customer_id),
+          reservation_expires_at: form.reservation_expires_at || null,
+          notes: form.notes || null,
         }),
       })
-      await onActivated()
+      await onReserved()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -44,22 +50,23 @@ function ActivationModal({ api, license, setError, onClose, onActivated, user })
   }
 
   return (
-    <Modal title="Activar licencia" eyebrow="Operación" onClose={onClose}>
+    <Modal title="Reservar licencia" eyebrow="Operación" onClose={onClose}>
       <form className="entity-form" onSubmit={submit}>
         <p className="guide-text">
-          Esta acción activa una licencia ya registrada y quedará auditada con tu usuario como activador.
+          La reserva bloquea esta licencia para un cliente sin activarla. La activación se hará después y quedará auditada aparte.
         </p>
+
         <div className="form-grid">
           <label>
-            Activado por
+            Reservada por
             <input value={`${user?.name || 'Usuario actual'}${user?.email ? ` · ${user.email}` : ''}`} readOnly aria-readonly="true" />
-            <span className="field-help">Este dato lo registra el backend desde tu sesión. No se puede cambiar manualmente.</span>
+            <span className="field-help">Este dato lo registra el backend desde tu sesión.</span>
           </label>
 
           <label>
             Cliente
-            <select value={form.customer_id} onChange={(event) => updateField('customer_id', event.target.value)}>
-              <option value="">Sin cliente asignado</option>
+            <select value={form.customer_id} onChange={(event) => updateField('customer_id', event.target.value)} required>
+              <option value="">Seleccionar cliente</option>
               {customers.map((customer) => (
                 <option key={customer.id} value={customer.id}>
                   {customer.name}
@@ -69,17 +76,17 @@ function ActivationModal({ api, license, setError, onClose, onActivated, user })
           </label>
 
           <label>
-            Equipo o dispositivo
-            <input value={form.device_reference} onChange={(event) => updateField('device_reference', event.target.value)} />
-          </label>
-
-          <label>
-            Referencia de soporte
-            <input value={form.support_reference} onChange={(event) => updateField('support_reference', event.target.value)} />
+            Vigencia de reserva
+            <input
+              type="date"
+              value={form.reservation_expires_at}
+              onChange={(event) => updateField('reservation_expires_at', event.target.value)}
+            />
+            <span className="field-help">Opcional. Sirve para saber hasta cuándo se aparta la licencia para ese cliente.</span>
           </label>
 
           <label className="full-span">
-            Notas
+            Notas de reserva
             <textarea value={form.notes} onChange={(event) => updateField('notes', event.target.value)} rows="3" />
           </label>
         </div>
@@ -89,7 +96,7 @@ function ActivationModal({ api, license, setError, onClose, onActivated, user })
             Cancelar
           </button>
           <button type="submit" disabled={saving}>
-            {saving ? 'Activando...' : 'Confirmar activación'}
+            {saving ? 'Reservando...' : 'Confirmar reserva'}
           </button>
         </div>
       </form>
@@ -97,4 +104,4 @@ function ActivationModal({ api, license, setError, onClose, onActivated, user })
   )
 }
 
-export default ActivationModal
+export default ReservationModal

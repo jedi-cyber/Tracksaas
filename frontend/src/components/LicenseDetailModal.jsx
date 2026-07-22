@@ -44,7 +44,7 @@ function LicenseDetailModal({ api, license, setError, onClose }) {
   const importantReason = findImportantReason(auditLogs, current)
   const mainResponsibility = {
     registeredBy: current.created_by_name || findEventUser(auditLogs, 'create'),
-    reservedBy: findEventUser(auditLogs, 'reserve'),
+    reservedBy: current.reserved_by_name || findEventUser(auditLogs, 'reserve'),
     activatedBy: activation?.activated_by_name || findEventUser(auditLogs, 'activate'),
     expiredBy: findEventUser(auditLogs, 'expire_overdue') || findExpiredBy(auditLogs),
   }
@@ -95,6 +95,21 @@ function LicenseDetailModal({ api, license, setError, onClose }) {
               <DetailItem label="Margen estimado" value={`${current.currency_code || ''} ${calculateMargin(current)}`.trim()} />
               <DetailItem label="Ciclo" value={formatValue(current.billing_cycle)} />
             </div>
+          </section>
+
+          <section>
+            <h4>Reserva</h4>
+            {current.status === 'reserved' ? (
+              <div className="detail-grid">
+                <DetailItem label="Reservada para" value={current.reserved_customer_name} />
+                <DetailItem label="Reservada por" value={current.reserved_by_name} />
+                <DetailItem label="Fecha de reserva" value={formatDateTime(current.reserved_at)} />
+                <DetailItem label="Vigencia de reserva" value={formatDate(current.reservation_expires_at)} />
+                <DetailItem label="Notas de reserva" value={current.reservation_notes} />
+              </div>
+            ) : (
+              <p className="muted-text">Esta licencia no tiene una reserva activa.</p>
+            )}
           </section>
 
           <section>
@@ -209,7 +224,12 @@ function operationLabel(operation, action, previousStatus, nextStatus) {
 }
 
 function operationDetail(operation, previousStatus, nextStatus, item) {
-  if (operation === 'reserve') return 'La licencia quedó apartada para un uso futuro.'
+  if (operation === 'reserve') {
+    const reservedFor = item.new_values?.reserved_for?.name
+    const expiresAt = item.new_values?.reservation_expires_at
+    const detail = reservedFor ? `Cliente: ${reservedFor}.` : 'La licencia quedó apartada para un uso futuro.'
+    return expiresAt ? `${detail} Vigencia de reserva: ${formatDate(expiresAt)}.` : detail
+  }
   if (operation === 'release_reservation') return 'La licencia volvió a estar disponible.'
   if (operation === 'expire_overdue') return 'El sistema la marcó vencida por fecha de renovación/facturación.'
   if (item.new_values?.reason) return `Motivo: ${item.new_values.reason}`

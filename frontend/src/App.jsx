@@ -13,6 +13,7 @@ function App() {
   const [user, setUser] = useState(null)
   const [activeModule, setActiveModule] = useState('dashboard')
   const [openGroups, setOpenGroups] = useState({ catalog: false })
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
 
   const api = useMemo(() => {
@@ -61,7 +62,7 @@ function App() {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         message,
         type,
-        duration: type === 'error' ? 7000 : type === 'success' ? 4500 : 5000,
+        duration: type === 'error' ? 7000 : type === 'alert' ? 6500 : type === 'success' ? 4500 : 5000,
       },
     ])
   }
@@ -83,6 +84,12 @@ function App() {
     setUser(null)
     setActiveModule('dashboard')
     setOpenGroups({})
+    setSidebarOpen(false)
+  }
+
+  function selectModule(moduleId) {
+    setActiveModule(moduleId)
+    setSidebarOpen(false)
   }
 
   function canReadModule(moduleId) {
@@ -107,19 +114,57 @@ function App() {
     }
   }, [user, activeModule])
 
+  const activeModuleLabel = useMemo(() => {
+    for (const module of visibleModules) {
+      if (module.id === activeModule) return module.label
+      const child = module.children?.find((item) => item.id === activeModule)
+      if (child) return child.label
+    }
+    return 'Dashboard'
+  }, [activeModule, visibleModules])
+
   if (!token) {
     return <LoginScreen apiUrl={API_URL} onLogin={handleLogin} />
   }
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <header className="mobile-topbar">
+        <button
+          type="button"
+          className="mobile-menu-button"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Abrir menú"
+        >
+          Menú
+        </button>
+        <strong>{activeModuleLabel}</strong>
+      </header>
+
+      {sidebarOpen && (
+        <button
+          type="button"
+          className="sidebar-backdrop"
+          aria-label="Cerrar menú"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
         <div className="brand">
           <div className="brand-mark">TS</div>
           <div>
             <h1>TrackSaaS</h1>
             <p>Control de licencias</p>
           </div>
+          <button
+            type="button"
+            className="sidebar-close-button"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Cerrar menú"
+          >
+            Cerrar
+          </button>
         </div>
 
         <nav className="nav-list" aria-label="Módulos">
@@ -149,7 +194,7 @@ function App() {
                           key={child.id}
                           type="button"
                           className={activeModule === child.id ? 'active' : ''}
-                          onClick={() => setActiveModule(child.id)}
+                          onClick={() => selectModule(child.id)}
                         >
                           {child.label}
                         </button>
@@ -166,7 +211,7 @@ function App() {
                 type="button"
                 className={activeModule === module.id ? 'active' : ''}
                 onClick={() => {
-                  setActiveModule(module.id)
+                  selectModule(module.id)
                 }}
               >
                 {module.label}

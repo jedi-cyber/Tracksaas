@@ -190,6 +190,11 @@ CREATE TABLE IF NOT EXISTS license_units (
     license_code_hash CHAR(64) NOT NULL UNIQUE,
     masked_code VARCHAR(120) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'available',
+    reserved_customer_id BIGINT,
+    reserved_by BIGINT,
+    reserved_at TIMESTAMPTZ,
+    reservation_expires_at DATE,
+    reservation_notes TEXT,
     validity_start_mode VARCHAR(30) NOT NULL DEFAULT 'purchase_date',
     start_date DATE,
     next_renewal_date DATE,
@@ -210,6 +215,10 @@ CREATE TABLE IF NOT EXISTS license_units (
         REFERENCES license_batches(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_license_units_responsible FOREIGN KEY (responsible_user_id)
         REFERENCES users(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_license_units_reserved_customer FOREIGN KEY (reserved_customer_id)
+        REFERENCES customers(id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_license_units_reserved_by FOREIGN KEY (reserved_by)
+        REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_license_units_create_uid FOREIGN KEY (create_uid)
         REFERENCES users(id) ON DELETE RESTRICT,
     CONSTRAINT fk_license_units_write_uid FOREIGN KEY (write_uid)
@@ -254,6 +263,35 @@ ALTER TABLE license_units
     ADD COLUMN IF NOT EXISTS redeem_deadline_date DATE;
 ALTER TABLE license_units
     ADD COLUMN IF NOT EXISTS sale_price NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE license_units
+    ADD COLUMN IF NOT EXISTS reserved_customer_id BIGINT;
+ALTER TABLE license_units
+    ADD COLUMN IF NOT EXISTS reserved_by BIGINT;
+ALTER TABLE license_units
+    ADD COLUMN IF NOT EXISTS reserved_at TIMESTAMPTZ;
+ALTER TABLE license_units
+    ADD COLUMN IF NOT EXISTS reservation_expires_at DATE;
+ALTER TABLE license_units
+    ADD COLUMN IF NOT EXISTS reservation_notes TEXT;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_license_units_reserved_customer'
+    ) THEN
+        ALTER TABLE license_units
+            ADD CONSTRAINT fk_license_units_reserved_customer FOREIGN KEY (reserved_customer_id)
+            REFERENCES customers(id) ON UPDATE CASCADE ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_license_units_reserved_by'
+    ) THEN
+        ALTER TABLE license_units
+            ADD CONSTRAINT fk_license_units_reserved_by FOREIGN KEY (reserved_by)
+            REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL;
+    END IF;
+END;
+$$;
 UPDATE license_units
 SET sale_price = cost
 WHERE sale_price = 0;
@@ -297,6 +335,8 @@ $$ LANGUAGE plpgsql;
 CREATE INDEX IF NOT EXISTS idx_license_units_batch_id ON license_units(batch_id);
 CREATE INDEX IF NOT EXISTS idx_license_units_commercial_identifier ON license_units(commercial_identifier);
 CREATE INDEX IF NOT EXISTS idx_license_units_responsible ON license_units(responsible_user_id);
+CREATE INDEX IF NOT EXISTS idx_license_units_reserved_customer ON license_units(reserved_customer_id);
+CREATE INDEX IF NOT EXISTS idx_license_units_reserved_by ON license_units(reserved_by);
 CREATE INDEX IF NOT EXISTS idx_license_units_status ON license_units(status);
 CREATE INDEX IF NOT EXISTS idx_license_units_next_renewal ON license_units(next_renewal_date);
 CREATE INDEX IF NOT EXISTS idx_license_units_active_status ON license_units(active,status);
@@ -421,7 +461,8 @@ WHERE lu.active = TRUE
     )
   );
 
-CREATE OR REPLACE VIEW vw_financial_dashboard AS
+DROP VIEW IF EXISTS vw_financial_dashboard;
+CREATE VIEW vw_financial_dashboard AS
 SELECT
     COALESCE(SUM(sale_price) FILTER (WHERE active = TRUE AND status = 'activated'), 0)::NUMERIC(14,2) AS activated_revenue,
     COALESCE(SUM(cost) FILTER (WHERE active = TRUE AND status = 'activated'), 0)::NUMERIC(14,2) AS sold_license_cost,

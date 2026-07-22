@@ -39,8 +39,8 @@ function DataTable({ rows, columns, actions, moduleId }) {
               key={row.id}
               className={row.active === false || row.status === 'cancelled' ? 'inactive-row' : ''}
             >
-              {columns.map(([key]) => (
-                <td key={key}>
+              {columns.map(([key, label]) => (
+                <td key={key} data-label={label}>
                   {moduleId === 'roles' && key === 'active' ? (
                     <span className={`state-dot ${row[key] ? 'state-dot-active' : 'state-dot-inactive'}`} title={row[key] ? 'Activado' : 'Desactivado'} aria-label={row[key] ? 'Activado' : 'Desactivado'} />
                   ) : key === 'status' || key === 'alert_color' ? (
@@ -51,7 +51,7 @@ function DataTable({ rows, columns, actions, moduleId }) {
                 </td>
               ))}
 	              {actions && (
-	                <td className="actions-cell">
+	                <td className="actions-cell" data-label="Acciones">
 	                  <div className="actions-menu" onClick={(event) => event.stopPropagation()}>
 	                    <button
 	                      type="button"

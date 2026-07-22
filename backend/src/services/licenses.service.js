@@ -220,6 +220,11 @@ async function listLicenses(query) {
         lu.commercial_identifier,
         lu.masked_code,
         lu.status,
+        lu.reserved_customer_id,
+        lu.reserved_by,
+        lu.reserved_at,
+        lu.reservation_expires_at,
+        lu.reservation_notes,
         lu.validity_start_mode,
         lu.start_date,
         lu.next_renewal_date,
@@ -247,6 +252,8 @@ async function listLicenses(query) {
         p.name AS product_name,
         pr.name AS provider_name,
         u.name AS responsible_user_name,
+        reserved_customer.name AS reserved_customer_name,
+        reserved_user.name AS reserved_by_name,
         creator.name AS created_by_name,
         COUNT(*) OVER() AS total_count
       FROM license_units lu
@@ -255,6 +262,8 @@ async function listLicenses(query) {
       JOIN products p ON p.id = pv.product_id
       JOIN providers pr ON pr.id = lb.provider_id
       JOIN users u ON u.id = lu.responsible_user_id
+      LEFT JOIN customers reserved_customer ON reserved_customer.id = lu.reserved_customer_id
+      LEFT JOIN users reserved_user ON reserved_user.id = lu.reserved_by
       JOIN users creator ON creator.id = lu.create_uid
       WHERE ($1::BOOLEAN = TRUE OR lu.active = TRUE)
         AND ($2::TEXT IS NULL OR lu.status = $2)
@@ -315,6 +324,11 @@ async function getLicense(id) {
         lu.commercial_identifier,
         lu.masked_code,
         lu.status,
+        lu.reserved_customer_id,
+        lu.reserved_by,
+        lu.reserved_at,
+        lu.reservation_expires_at,
+        lu.reservation_notes,
         lu.validity_start_mode,
         lu.start_date,
         lu.next_renewal_date,
@@ -342,6 +356,8 @@ async function getLicense(id) {
         p.name AS product_name,
         pr.name AS provider_name,
         u.name AS responsible_user_name,
+        reserved_customer.name AS reserved_customer_name,
+        reserved_user.name AS reserved_by_name,
         creator.name AS created_by_name
       FROM license_units lu
       JOIN license_batches lb ON lb.id = lu.batch_id
@@ -349,6 +365,8 @@ async function getLicense(id) {
       JOIN products p ON p.id = pv.product_id
       JOIN providers pr ON pr.id = lb.provider_id
       JOIN users u ON u.id = lu.responsible_user_id
+      LEFT JOIN customers reserved_customer ON reserved_customer.id = lu.reserved_customer_id
+      LEFT JOIN users reserved_user ON reserved_user.id = lu.reserved_by
       JOIN users creator ON creator.id = lu.create_uid
       WHERE lu.id = $1
     `,
@@ -683,6 +701,15 @@ async function deactivateLicense(id, payload, userId, ipAddress) {
 }
 
 async function reserveLicense(id, payload, userId, ipAddress) {
+  if (!payload?.customer_id) {
+    throw apiError("Selecciona el cliente para quien se reserva la licencia");
+  }
+
+  validatePositiveInteger(payload, "customer_id");
+  validatePositiveInteger(payload, "responsible_user_id");
+  validateDate(payload, "reservation_expires_at");
+  validateString(payload, "notes", { max: 2000, allowBlank: true });
+
   const client = await pool.connect();
 
   try {
@@ -707,22 +734,38 @@ async function reserveLicense(id, payload, userId, ipAddress) {
 
     assertLicenseNotOverdueForOperation(oldLicense, "reservar");
 
+    const customerResult = await client.query(
+      "SELECT id, name FROM customers WHERE id = $1 AND active = TRUE",
+      [payload.customer_id]
+    );
+
+    if (!customerResult.rows[0]) {
+      throw apiError("Cliente de reserva no encontrado", 404);
+    }
+
     const { rows } = await client.query(
       `
         UPDATE license_units
         SET
           status = 'reserved',
-          responsible_user_id = COALESCE($2, responsible_user_id),
-          notes = COALESCE($3, notes),
-          write_uid = $4
+          reserved_customer_id = $2,
+          reserved_by = $3,
+          reserved_at = CURRENT_TIMESTAMP,
+          reservation_expires_at = $4,
+          reservation_notes = COALESCE($5, reservation_notes),
+          responsible_user_id = COALESCE($6, responsible_user_id),
+          notes = COALESCE($5, notes),
+          write_uid = $3
         WHERE id = $1
         RETURNING *
       `,
       [
         id,
-        payload.responsible_user_id || null,
-        payload.notes || null,
+        payload.customer_id,
         userId,
+        payload.reservation_expires_at || null,
+        payload.notes || null,
+        payload.responsible_user_id || null,
       ]
     );
 
@@ -737,6 +780,9 @@ async function reserveLicense(id, payload, userId, ipAddress) {
       oldValues: safeOldLicense,
       newValues: {
         operation: "reserve",
+        reserved_for: customerResult.rows[0],
+        reservation_expires_at: payload.reservation_expires_at || null,
+        notes: payload.notes || null,
         license: safeLicense,
       },
       ipAddress,
@@ -780,6 +826,11 @@ async function releaseReservation(id, payload, userId, ipAddress) {
         UPDATE license_units
         SET
           status = 'available',
+          reserved_customer_id = NULL,
+          reserved_by = NULL,
+          reserved_at = NULL,
+          reservation_expires_at = NULL,
+          reservation_notes = NULL,
           notes = COALESCE($2, notes),
           write_uid = $3
         WHERE id = $1
@@ -937,7 +988,7 @@ async function activateLicense(id, payload, userId, ipAddress) {
       `,
       [
         id,
-        payload.customer_id || null,
+        payload.customer_id || oldLicense.reserved_customer_id || null,
         userId,
         payload.device_reference || null,
         payload.support_reference || null,
