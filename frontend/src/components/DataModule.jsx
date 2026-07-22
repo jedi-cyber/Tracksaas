@@ -23,9 +23,9 @@ const DEFAULT_PAGE_SIZE = 10
 
 function DataModule({ api, moduleId, setError, user }) {
   const config = tableConfig[moduleId]
-  const isLicenseModule = ['licenses', 'expiredLicenses'].includes(moduleId)
-  const isLicenseDetailModule = ['licenses', 'activations', 'expiredLicenses'].includes(moduleId)
-  const hasOperationalFilters = ['licenses', 'activations', 'expiredLicenses'].includes(moduleId)
+  const isLicenseModule = ['licenses', 'expiredLicenses', 'cancelledLicenses'].includes(moduleId)
+  const isLicenseDetailModule = ['licenses', 'activations', 'expiredLicenses', 'cancelledLicenses'].includes(moduleId)
+  const hasOperationalFilters = ['licenses', 'activations', 'expiredLicenses', 'cancelledLicenses'].includes(moduleId)
   const entityForm = formConfig[moduleId] || (isLicenseModule ? formConfig.licenses : null)
 	  const [rows, setRows] = useState([])
   const [pagination, setPagination] = useState(null)
@@ -522,7 +522,7 @@ function DataModule({ api, moduleId, setError, user }) {
 
     const statusOptions = moduleId === 'licenses'
       ? ['available', 'reserved']
-      : moduleId === 'expiredLicenses'
+      : ['expiredLicenses', 'cancelledLicenses'].includes(moduleId)
         ? []
         : ['activated', 'expired']
 
@@ -656,7 +656,7 @@ function DataModule({ api, moduleId, setError, user }) {
           )}
         </div>
         <div className="header-actions">
-	          {['licenses', 'activations', 'expiredLicenses'].includes(moduleId) && (
+	          {['licenses', 'activations', 'expiredLicenses', 'cancelledLicenses'].includes(moduleId) && (
             <input
               className="module-search"
               value={searchTerm}
@@ -842,7 +842,7 @@ function DataModule({ api, moduleId, setError, user }) {
             rows={rows}
             columns={config.columns}
 	            actions={
-	              entityForm || ['licenses', 'activations', 'expiredLicenses'].includes(moduleId)
+	              entityForm || ['licenses', 'activations', 'expiredLicenses', 'cancelledLicenses'].includes(moduleId)
 	                ? (row) => (
 	                  <div className="row-actions">
 	                    {isLicenseModule

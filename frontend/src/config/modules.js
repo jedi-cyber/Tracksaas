@@ -16,6 +16,7 @@ export const modules = [
 	  { id: 'roles', label: 'Roles' },
 	  { id: 'activations', label: 'Ya activadas' },
   { id: 'expiredLicenses', label: 'Expiradas' },
+  { id: 'cancelledLicenses', label: 'Canceladas' },
 	  { id: 'audit', label: 'Auditoría' },
 ]
 
@@ -143,6 +144,21 @@ export const tableConfig = {
       ['activation_priority_reason', 'Motivo'],
       ['responsible_user_name', 'Custodio'],
       ['created_by_name', 'Registrado por'],
+    ],
+  },
+  cancelledLicenses: {
+    path: '/licenses',
+    title: 'Licencias canceladas',
+    fixedQuery: 'status=cancelled',
+    columns: [
+      ['commercial_identifier', 'ID comercial público'],
+      ['product_name', 'Producto'],
+      ['variant_name', 'Variante'],
+      ['masked_code', 'Clave única enmascarada'],
+      ['notes', 'Motivo / notas'],
+      ['responsible_user_name', 'Custodio'],
+      ['created_by_name', 'Registrado por'],
+      ['write_date', 'Última modificación'],
     ],
   },
   audit: {

@@ -3,6 +3,7 @@ import Dashboard from './components/Dashboard'
 import DataModule from './components/DataModule'
 import LoginScreen from './components/LoginScreen'
 import NotificationCenter from './components/NotificationCenter'
+import NotificationModule from './components/NotificationModule'
 import { modules, rolePermissions } from './config/modules'
 import './App.css'
 
@@ -12,9 +13,11 @@ function App() {
   const [token, setToken] = useState(() => localStorage.getItem('tracksaas_token'))
   const [user, setUser] = useState(null)
   const [activeModule, setActiveModule] = useState('dashboard')
+  const [previousModule, setPreviousModule] = useState('dashboard')
   const [openGroups, setOpenGroups] = useState({ catalog: false })
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
+  const [notificationHistory, setNotificationHistory] = useState([])
 
   const api = useMemo(() => {
     async function request(path, options = {}) {
@@ -56,19 +59,28 @@ function App() {
   function notify(message, type = 'error') {
     if (!message) return
 
-    setNotifications((current) => [
-      ...current,
-      {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        message,
-        type,
-        duration: type === 'error' ? 7000 : type === 'alert' ? 6500 : type === 'success' ? 4500 : 5000,
-      },
-    ])
+    const notification = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      message,
+      type,
+      createdAt: new Date().toISOString(),
+      duration: type === 'error' ? 7000 : type === 'alert' ? 6500 : type === 'success' ? 4500 : 5000,
+    }
+
+    setNotifications((current) => [...current, notification])
+    setNotificationHistory((current) => [notification, ...current].slice(0, 60))
   }
 
   function dismissNotification(id) {
     setNotifications((current) => current.filter((notification) => notification.id !== id))
+  }
+
+  function removeNotificationHistory(id) {
+    setNotificationHistory((current) => current.filter((notification) => notification.id !== id))
+  }
+
+  function clearNotificationHistory() {
+    setNotificationHistory([])
   }
 
   function handleLogin(nextToken, nextUser) {
@@ -76,6 +88,7 @@ function App() {
     setToken(nextToken)
     setUser(nextUser)
     setNotifications([])
+    setNotificationHistory([])
   }
 
   function logout() {
@@ -83,18 +96,28 @@ function App() {
     setToken(null)
     setUser(null)
     setActiveModule('dashboard')
+    setPreviousModule('dashboard')
     setOpenGroups({})
     setSidebarOpen(false)
   }
 
   function selectModule(moduleId) {
+    if (moduleId === 'notifications' && activeModule !== 'notifications') {
+      setPreviousModule(activeModule)
+    }
     setActiveModule(moduleId)
     setSidebarOpen(false)
   }
 
+  function closeNotificationsModule() {
+    setActiveModule(previousModule || 'dashboard')
+  }
+
   function canReadModule(moduleId) {
+    if (moduleId === 'notifications') return true
     if (moduleId === 'dashboard') return rolePermissions[user?.role?.name]?.dashboard?.includes('read')
     if (moduleId === 'expiredLicenses') return rolePermissions[user?.role?.name]?.licenses?.includes('read')
+    if (moduleId === 'cancelledLicenses') return rolePermissions[user?.role?.name]?.licenses?.includes('read')
     if (moduleId === 'audit') return rolePermissions[user?.role?.name]?.audit?.includes('read')
     return rolePermissions[user?.role?.name]?.[moduleId]?.includes('read')
   }
@@ -120,6 +143,9 @@ function App() {
       const child = module.children?.find((item) => item.id === activeModule)
       if (child) return child.label
     }
+    if (activeModule === 'notifications') {
+      return 'Notificaciones'
+    }
     return 'Dashboard'
   }, [activeModule, visibleModules])
 
@@ -139,6 +165,15 @@ function App() {
           Menú
         </button>
         <strong>{activeModuleLabel}</strong>
+        <button
+          type="button"
+          className="mobile-notification-button"
+          onClick={() => selectModule('notifications')}
+          aria-label="Ver notificaciones"
+        >
+          Avisos
+          {notificationHistory.length > 0 && <span>{notificationHistory.length}</span>}
+        </button>
       </header>
 
       {sidebarOpen && (
@@ -232,8 +267,25 @@ function App() {
 
       <main className="main-panel">
         <NotificationCenter notifications={notifications} onDismiss={dismissNotification} />
+        <div className="main-toolbar">
+          <button
+            type="button"
+            className={activeModule === 'notifications' ? 'secondary-button active-toolbar-button' : 'secondary-button'}
+            onClick={() => selectModule('notifications')}
+          >
+            Notificaciones
+            {notificationHistory.length > 0 && <span>{notificationHistory.length}</span>}
+          </button>
+        </div>
 
-        {activeModule === 'dashboard' ? (
+        {activeModule === 'notifications' ? (
+          <NotificationModule
+            notifications={notificationHistory}
+            onRemove={removeNotificationHistory}
+            onClear={clearNotificationHistory}
+            onBack={closeNotificationsModule}
+          />
+        ) : activeModule === 'dashboard' ? (
           <Dashboard api={api} setError={notify} />
         ) : (
           <DataModule

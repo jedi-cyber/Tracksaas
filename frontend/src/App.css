@@ -220,6 +220,63 @@ button:disabled {
   background: rgba(15, 23, 42, 0.16);
 }
 
+.notification-history {
+  display: grid;
+  gap: 10px;
+}
+
+.notification-history-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #dce3ee;
+  border-left-width: 5px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.notification-history-item span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.notification-history-item strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.notification-history-item p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.notification-history-error {
+  border-left-color: #dc2626;
+}
+
+.notification-history-alert {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.notification-history-success {
+  border-left-color: #16a34a;
+}
+
+.notification-history-info {
+  border-left-color: #1769aa;
+}
+
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -356,6 +413,37 @@ button:disabled {
 .main-panel {
   min-width: 0;
   padding: 24px;
+}
+
+.main-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+
+.main-toolbar button,
+.mobile-notification-button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+.main-toolbar span,
+.mobile-notification-button span {
+  min-width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.active-toolbar-button {
+  box-shadow: inset 0 0 0 2px #1769aa;
 }
 
 .eyebrow {
@@ -1292,6 +1380,7 @@ td {
   }
 
   .mobile-topbar strong {
+    flex: 1;
     min-width: 0;
     color: #0f172a;
     overflow: hidden;
@@ -1307,6 +1396,21 @@ td {
 
   .mobile-menu-button:hover {
     background: #d8e3f0;
+  }
+
+  .mobile-notification-button {
+    flex: 0 0 auto;
+    padding: 9px 10px;
+    background: #e8eef6;
+    color: #16324f;
+  }
+
+  .mobile-notification-button:hover {
+    background: #d8e3f0;
+  }
+
+  .main-toolbar {
+    display: none;
   }
 
   .sidebar-backdrop {
@@ -1621,6 +1725,15 @@ td {
 
   .actions-menu-panel {
     max-width: calc(100vw - 16px);
+  }
+
+  .notification-history-item {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .notification-history-item button {
+    width: 100%;
   }
 
   .pagination-bar {
