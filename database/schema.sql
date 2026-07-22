@@ -365,6 +365,7 @@ SELECT
         ELSE NULL
     END AS alert_date,
     CASE
+        WHEN lu.status = 'expired' THEN 'licencia_vencida'
         WHEN lu.next_renewal_date IS NOT NULL THEN 'vigencia_en_curso'
         WHEN lu.validity_start_mode = 'first_activation'
             AND lu.activation_date IS NULL
@@ -385,6 +386,7 @@ SELECT
         END - CURRENT_DATE
     ) AS days_remaining,
     CASE
+        WHEN lu.status = 'expired' THEN 'red'
         WHEN (
             CASE
                 WHEN lu.next_renewal_date IS NOT NULL THEN lu.next_renewal_date
@@ -409,6 +411,8 @@ FROM license_units lu
 WHERE lu.active = TRUE
   AND lu.status <> 'cancelled'
   AND (
+    lu.status = 'expired'
+    OR
     lu.next_renewal_date IS NOT NULL
     OR (
       lu.validity_start_mode = 'first_activation'

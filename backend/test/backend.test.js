@@ -746,6 +746,25 @@ describe("TrackSaaS backend", () => {
     assert.equal(new Date(updated.body.data.redeem_deadline_date).toISOString().slice(0, 10), "2025-01-01");
   });
 
+  test("no permite editar fechas operativas de licencia vencida", async () => {
+    const license = await createLicenseFixture("LOCK-EXPIRED-DATES", {
+      validityStartMode: "purchase_date",
+      startDate: "2020-01-01",
+    });
+
+    assert.equal(license.status, "expired");
+
+    const updated = await request(`/api/licenses/${license.id}`, {
+      method: "PUT",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        expiration_date: "2026-12-31",
+      }),
+    });
+
+    assert.equal(updated.response.status, 409);
+  });
+
 	  test("prioriza activación por fecha crítica más antigua", async () => {
     const later = await createLicenseFixture("PRIORITY-LATER", {
       validityStartMode: "first_activation",
@@ -781,6 +800,15 @@ describe("TrackSaaS backend", () => {
       startDate: "2026-07-01",
       billingCycle: "monthly",
     });
+    const expiredWithFutureDate = await createLicenseFixture("ALERT-EXPIRED-FUTURE", {
+      validityStartMode: "purchase_date",
+      startDate: "2026-07-01",
+      billingCycle: "annual",
+    });
+    await pool.query(
+      "UPDATE license_units SET status = 'expired', expiration_date = CURRENT_DATE WHERE id = $1",
+      [expiredWithFutureDate.id]
+    );
 
     const alerts = await request("/api/dashboard/alerts?limit=100", {
       headers: jsonHeaders(),
@@ -789,11 +817,14 @@ describe("TrackSaaS backend", () => {
     assert.equal(alerts.response.status, 200);
     const redeemRow = alerts.body.data.find((license) => license.id === redeemAlert.id);
     const renewalRow = alerts.body.data.find((license) => license.id === renewalAlert.id);
+    const expiredRow = alerts.body.data.find((license) => license.id === expiredWithFutureDate.id);
 
     assert.equal(redeemRow.alert_reason, "limite_de_canje");
     assert.equal(new Date(redeemRow.alert_date).toISOString().slice(0, 10), "2026-08-01");
     assert.equal(renewalRow.alert_reason, "vigencia_en_curso");
     assert.ok(renewalRow.alert_date);
+    assert.equal(expiredRow.alert_reason, "licencia_vencida");
+    assert.equal(expiredRow.alert_color, "red");
   });
 
   test("dashboard protegido devuelve resumen", async () => {

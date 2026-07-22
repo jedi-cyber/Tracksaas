@@ -3,6 +3,64 @@ const { getPagination, paginatedResponse } = require("../utils/pagination");
 
 const ALERT_COLORS = new Set(["green", "yellow", "red"]);
 
+function licenseAlertsQuery() {
+  return `
+    WITH alert_base AS (
+      SELECT
+        lu.id,
+        lu.name,
+        lu.commercial_identifier,
+        lu.status,
+        lu.validity_start_mode,
+        lu.start_date,
+        lu.next_renewal_date,
+        lu.redeem_deadline_date,
+        CASE
+          WHEN lu.next_renewal_date IS NOT NULL THEN lu.next_renewal_date
+          WHEN lu.validity_start_mode = 'first_activation'
+            AND lu.activation_date IS NULL
+            AND lu.redeem_deadline_date IS NOT NULL THEN lu.redeem_deadline_date
+          WHEN lu.status = 'expired' THEN lu.expiration_date
+          ELSE NULL
+        END AS alert_date,
+        CASE
+          WHEN lu.status = 'expired' THEN 'licencia_vencida'
+          WHEN lu.next_renewal_date IS NOT NULL THEN 'vigencia_en_curso'
+          WHEN lu.validity_start_mode = 'first_activation'
+            AND lu.activation_date IS NULL
+            AND lu.redeem_deadline_date IS NOT NULL THEN 'limite_de_canje'
+          ELSE 'sin_fecha_critica'
+        END AS alert_reason,
+        lu.cost,
+        lu.billing_cycle,
+        lu.currency_code,
+        lu.responsible_user_id
+      FROM license_units lu
+      WHERE lu.active = TRUE
+        AND lu.status <> 'cancelled'
+        AND (
+          lu.status = 'expired'
+          OR lu.next_renewal_date IS NOT NULL
+          OR (
+            lu.validity_start_mode = 'first_activation'
+            AND lu.activation_date IS NULL
+            AND lu.redeem_deadline_date IS NOT NULL
+          )
+        )
+    )
+    SELECT
+      alert_base.*,
+      (alert_date - CURRENT_DATE) AS days_remaining,
+      CASE
+        WHEN status = 'expired' THEN 'red'
+        WHEN alert_date < CURRENT_DATE THEN 'red'
+        WHEN alert_date <= CURRENT_DATE + 30 THEN 'yellow'
+        ELSE 'green'
+      END AS alert_color
+    FROM alert_base
+  `;
+}
+
 async function getFinancialDashboard() {
   const { rows } = await pool.query(
     `
@@ -82,7 +140,7 @@ async function getAlertSummary() {
   const { rows } = await pool.query(
     `
       SELECT alert_color, COUNT(*)::INT AS total
-      FROM vw_license_alerts
+      FROM (${licenseAlertsQuery()}) a
       GROUP BY alert_color
     `
   );
@@ -112,7 +170,7 @@ async function getAlerts(query) {
         a.*,
         u.name AS responsible_user_name,
         COUNT(*) OVER() AS total_count
-      FROM vw_license_alerts a
+      FROM (${licenseAlertsQuery()}) a
       JOIN users u ON u.id = a.responsible_user_id
       WHERE ($1::TEXT IS NULL OR a.alert_color = $1)
         AND ($2::TEXT IS NULL OR a.status = $2)
@@ -142,7 +200,7 @@ async function getUpcomingRenewals(query) {
       SELECT
         a.*,
         u.name AS responsible_user_name
-      FROM vw_license_alerts a
+      FROM (${licenseAlertsQuery()}) a
       JOIN users u ON u.id = a.responsible_user_id
       WHERE a.alert_date >= CURRENT_DATE
         AND a.alert_date <= CURRENT_DATE + ($1::INT * INTERVAL '1 day')

@@ -1060,6 +1060,58 @@ td {
   text-align: center;
 }
 
+.pagination-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.pagination-bar > div:first-child {
+  color: #475569;
+  font-weight: 700;
+}
+
+.pagination-bar > div:first-child strong {
+  color: #0f172a;
+}
+
+.pagination-bar label {
+  display: flex;
+  grid-template-columns: none;
+  gap: 8px;
+  align-items: center;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pagination-bar select {
+  width: auto;
+  min-width: 76px;
+  padding: 8px 10px;
+}
+
+.pagination-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.pagination-actions span {
+  color: #475569;
+  font-weight: 800;
+}
+
+.pagination-actions button {
+  padding: 8px 10px;
+}
+
 @media (max-width: 960px) {
   .app-shell,
   .login-panel {
@@ -1095,6 +1147,7 @@ td {
 
   .header-actions,
   .filter-actions,
+  .pagination-actions,
   .wizard-actions,
   .form-actions {
     justify-content: stretch;
@@ -1102,8 +1155,20 @@ td {
 
   .header-actions button,
   .filter-actions button,
+  .pagination-actions button,
   .wizard-actions button,
   .form-actions button {
+    width: 100%;
+  }
+
+  .pagination-bar,
+  .pagination-bar label,
+  .pagination-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pagination-bar select {
     width: 100%;
   }
 

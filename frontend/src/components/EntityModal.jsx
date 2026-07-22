@@ -317,6 +317,7 @@ function shouldHideField(field, row, mode, form = {}) {
 }
 
 function shouldDisableField(field, row, mode) {
+  if (mode === 'edit' && field.disabledOnEditForStatuses?.includes(row?.status)) return true
   if (mode !== 'edit' || !field.disabledOnEditWhen) return false
   return Object.entries(field.disabledOnEditWhen).every(([key, expected]) => row?.[key] === expected)
 }

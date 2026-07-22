@@ -222,6 +222,7 @@ export const formConfig = {
         type: 'select',
         required: true,
         disabledOnEditWhen: { status: 'activated' },
+        disabledOnEditForStatuses: ['expired', 'cancelled'],
         staticOptions: [
           { value: 'purchase_date', label: 'Compra online/oficial: vence desde la compra' },
           { value: 'first_activation', label: 'Física/distribuidor: vence desde la primera activación' },
@@ -232,6 +233,7 @@ export const formConfig = {
 	        label: 'Fecha de compra/facturación',
 	        type: 'date',
 	        disabledOnEditWhen: { status: 'activated' },
+	        disabledOnEditForStatuses: ['expired', 'cancelled'],
 	        showWhen: { validity_start_mode: 'purchase_date' },
 	      },
 	      {
@@ -239,6 +241,7 @@ export const formConfig = {
 	        label: 'Fecha límite de canje',
 	        type: 'date',
 	        disabledOnEditWhen: { status: 'activated' },
+	        disabledOnEditForStatuses: ['expired', 'cancelled'],
 	        showWhen: { validity_start_mode: 'first_activation' },
 	      },
 	      {

@@ -16,6 +16,8 @@ const EMPTY_FILTERS = {
   due: '',
 }
 
+const DEFAULT_PAGE_SIZE = 10
+
 function DataModule({ api, moduleId, setError, user }) {
   const config = tableConfig[moduleId]
   const isLicenseModule = ['licenses', 'expiredLicenses'].includes(moduleId)
@@ -24,6 +26,8 @@ function DataModule({ api, moduleId, setError, user }) {
   const entityForm = formConfig[moduleId] || (isLicenseModule ? formConfig.licenses : null)
 	  const [rows, setRows] = useState([])
   const [pagination, setPagination] = useState(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filters, setFilters] = useState(EMPTY_FILTERS)
@@ -72,22 +76,26 @@ function DataModule({ api, moduleId, setError, user }) {
     return query ? `&${query}` : ''
   }
 
-  async function load(searchOverride, filtersOverride) {
+  async function load(searchOverride, filtersOverride, pageOverride, pageSizeOverride) {
     if (!config) return
     setLoading(true)
 	    try {
-	      const limit = ['licenses', 'activations', 'expiredLicenses'].includes(moduleId) ? 100 : 25
+	      const limit = pageSizeOverride || pageSize
+      const nextPage = pageOverride || page
 	      const effectiveSearch = typeof searchOverride === 'string' ? searchOverride : searchTerm
       const normalizedSearch = String(effectiveSearch || '').trim()
 	      const searchQuery = normalizedSearch ? `&search=${encodeURIComponent(normalizedSearch)}` : ''
       const fixedQuery = config.fixedQuery ? `&${config.fixedQuery}` : ''
       const filterQuery = hasOperationalFilters ? buildFilterQuery(filtersOverride || filters) : ''
-	      const body = await api.request(`${config.path}?limit=${limit}&includeInactive=true${fixedQuery}${filterQuery}${searchQuery}`)
-	      const nextRows = moduleId === 'licenses'
-	        ? (body.data || []).filter((row) => ['available', 'reserved'].includes(row.status))
-	        : body.data || []
+      const statusQuery = moduleId === 'licenses' && !(filtersOverride || filters).status
+        ? '&statuses=available,reserved'
+        : ''
+	      const body = await api.request(`${config.path}?page=${nextPage}&limit=${limit}&includeInactive=true${fixedQuery}${statusQuery}${filterQuery}${searchQuery}`)
+	      const nextRows = body.data || []
       setRows(nextRows)
       setPagination(body.pagination || null)
+      setPage(body.pagination?.page || nextPage)
+      setPageSize(body.pagination?.limit || limit)
     } catch (err) {
       setError(err.message)
       setRows([])
@@ -106,8 +114,10 @@ function DataModule({ api, moduleId, setError, user }) {
     setReasonAction(null)
     setSearchTerm('')
     setFilters(EMPTY_FILTERS)
+    setPage(1)
+    setPageSize(DEFAULT_PAGE_SIZE)
     loadFilterOptions()
-    load('', EMPTY_FILTERS)
+    load('', EMPTY_FILTERS, 1, DEFAULT_PAGE_SIZE)
   }, [config?.path, moduleId])
 
   function updateFilter(field, value) {
@@ -117,7 +127,31 @@ function DataModule({ api, moduleId, setError, user }) {
   function clearFilters() {
     setFilters(EMPTY_FILTERS)
     setSearchTerm('')
-    load('', EMPTY_FILTERS)
+    setPage(1)
+    load('', EMPTY_FILTERS, 1)
+  }
+
+  function applyFilters() {
+    setPage(1)
+    load(undefined, filters, 1)
+  }
+
+  function searchCurrentModule() {
+    setPage(1)
+    load(undefined, filters, 1)
+  }
+
+  function changePage(nextPage) {
+    if (!pagination) return
+    const boundedPage = Math.min(Math.max(nextPage, 1), Math.max(pagination.totalPages || 1, 1))
+    load(undefined, filters, boundedPage)
+  }
+
+  function changePageSize(nextSize) {
+    const normalizedSize = Number(nextSize) || DEFAULT_PAGE_SIZE
+    setPageSize(normalizedSize)
+    setPage(1)
+    load(undefined, filters, 1, normalizedSize)
   }
 
   async function licenseAction(id, action) {
@@ -500,7 +534,7 @@ function DataModule({ api, moduleId, setError, user }) {
         </label>
 
         <div className="filter-actions">
-          <button type="button" onClick={() => load()}>
+          <button type="button" onClick={applyFilters}>
             Aplicar filtros
           </button>
           <button type="button" className="secondary-button" onClick={clearFilters}>
@@ -513,6 +547,49 @@ function DataModule({ api, moduleId, setError, user }) {
 
   if (!config) return null
 
+  function renderPagination() {
+    if (!pagination) return null
+
+    const totalPages = Math.max(pagination.totalPages || 1, 1)
+    const firstItem = pagination.total === 0 ? 0 : ((pagination.page - 1) * pagination.limit) + 1
+    const lastItem = Math.min(pagination.page * pagination.limit, pagination.total)
+
+    return (
+      <div className="pagination-bar" aria-label="Paginación">
+        <div>
+          <strong>{firstItem}-{lastItem}</strong>
+          <span> de {pagination.total} registros</span>
+        </div>
+
+        <label>
+          Por página
+          <select value={pageSize} onChange={(event) => changePageSize(event.target.value)}>
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </label>
+
+        <div className="pagination-actions">
+          <button type="button" className="secondary-button" disabled={pagination.page <= 1} onClick={() => changePage(1)}>
+            Primero
+          </button>
+          <button type="button" className="secondary-button" disabled={pagination.page <= 1} onClick={() => changePage(pagination.page - 1)}>
+            Anterior
+          </button>
+          <span>Página {pagination.page} de {totalPages}</span>
+          <button type="button" className="secondary-button" disabled={pagination.page >= totalPages} onClick={() => changePage(pagination.page + 1)}>
+            Siguiente
+          </button>
+          <button type="button" className="secondary-button" disabled={pagination.page >= totalPages} onClick={() => changePage(totalPages)}>
+            Último
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <section className="content-block">
       <div className="section-header">
@@ -520,7 +597,7 @@ function DataModule({ api, moduleId, setError, user }) {
           <span className="eyebrow">Módulo</span>
           <h3>{config.title}</h3>
           {pagination && (
-            <p>{moduleId === 'licenses' ? rows.length : pagination.total} registros encontrados</p>
+            <p>{pagination.total} registros encontrados</p>
           )}
         </div>
         <div className="header-actions">
@@ -530,7 +607,7 @@ function DataModule({ api, moduleId, setError, user }) {
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') load()
+                if (event.key === 'Enter') searchCurrentModule()
               }}
 	              placeholder={moduleId === 'activations' ? 'Buscar activada...' : 'Buscar licencia...'}
             />
@@ -551,7 +628,7 @@ function DataModule({ api, moduleId, setError, user }) {
               Registrar licencia
             </button>
           )}
-          <button type="button" className="secondary-button" onClick={() => load()}>
+          <button type="button" className="secondary-button" onClick={searchCurrentModule}>
             {searchTerm.trim() ? 'Buscar' : 'Actualizar'}
           </button>
         </div>
@@ -678,24 +755,27 @@ function DataModule({ api, moduleId, setError, user }) {
       {loading ? (
         <p>Cargando registros...</p>
       ) : (
-        <DataTable
-          moduleId={moduleId}
-          rows={rows}
-          columns={config.columns}
-	          actions={
-	            entityForm || ['licenses', 'activations', 'expiredLicenses'].includes(moduleId)
-	              ? (row) => (
-	                <div className="row-actions">
-	                  {isLicenseModule
-	                    ? renderLicenseActions(row)
-	                    : moduleId === 'activations'
-	                      ? renderActivationActions(row)
-	                      : renderGenericActions(row)}
-	                </div>
-	              )
-	              : null
-	          }
-        />
+        <>
+          <DataTable
+            moduleId={moduleId}
+            rows={rows}
+            columns={config.columns}
+	            actions={
+	              entityForm || ['licenses', 'activations', 'expiredLicenses'].includes(moduleId)
+	                ? (row) => (
+	                  <div className="row-actions">
+	                    {isLicenseModule
+	                      ? renderLicenseActions(row)
+	                      : moduleId === 'activations'
+	                        ? renderActivationActions(row)
+	                        : renderGenericActions(row)}
+	                  </div>
+	                )
+	                : null
+	            }
+          />
+          {renderPagination()}
+        </>
       )}
     </section>
   )

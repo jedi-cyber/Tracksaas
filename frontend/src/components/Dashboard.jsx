@@ -5,15 +5,37 @@ import { formatValue, statusClass } from '../utils/formatters'
 function Dashboard({ api, setError }) {
   const [overview, setOverview] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [lastAlertNoticeKey, setLastAlertNoticeKey] = useState('')
 
   useEffect(() => {
     setLoading(true)
     api
       .request('/dashboard/overview')
-      .then((body) => setOverview(body.data))
+      .then((body) => {
+        setOverview(body.data)
+        notifyOperationalAlerts(body.data)
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [api, setError])
+
+  function notifyOperationalAlerts(data) {
+    const alerts = data?.alerts || {}
+    const red = Number(alerts.red || 0)
+    const yellow = Number(alerts.yellow || 0)
+    const noticeKey = `${red}-${yellow}`
+
+    if (!red && !yellow) return
+    if (noticeKey === lastAlertNoticeKey) return
+
+    setLastAlertNoticeKey(noticeKey)
+    if (red) {
+      setError(`Hay ${red} licencia(s) vencida(s) y ${yellow} próxima(s) a vencer. Revisa Alertas operativas.`, 'error')
+      return
+    }
+
+    setError(`Hay ${yellow} licencia(s) próximas a vencer en 30 días o menos.`, 'info')
+  }
 
   async function expireOverdue() {
     try {
@@ -21,6 +43,7 @@ function Dashboard({ api, setError }) {
       setError(`Licencias expiradas: ${body.data.expiredCount}`, 'info')
       const next = await api.request('/dashboard/overview')
       setOverview(next.data)
+      notifyOperationalAlerts(next.data)
     } catch (err) {
       setError(err.message)
     }

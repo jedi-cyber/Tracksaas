@@ -200,6 +200,9 @@ async function listLicenses(query) {
   const { page, limit, offset } = getPagination(query);
   const includeInactive = query.includeInactive === "true";
   const status = query.status || null;
+  const statuses = query.statuses
+    ? String(query.statuses).split(",").map((item) => item.trim()).filter((item) => LICENSE_STATUSES.includes(item))
+    : [];
   const batchId = query.batchId || null;
   const productId = query.productId || null;
   const providerId = query.providerId || null;
@@ -255,22 +258,23 @@ async function listLicenses(query) {
       JOIN users creator ON creator.id = lu.create_uid
       WHERE ($1::BOOLEAN = TRUE OR lu.active = TRUE)
         AND ($2::TEXT IS NULL OR lu.status = $2)
-        AND ($3::BIGINT IS NULL OR lu.batch_id = $3)
-        AND ($4::BIGINT IS NULL OR p.id = $4)
-        AND ($5::BIGINT IS NULL OR pr.id = $5)
-        AND ($6::BIGINT IS NULL OR lu.responsible_user_id = $6)
-        AND (
-          $7::TEXT IS NULL
-          OR ($7 = 'overdue' AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) < CURRENT_DATE)
-          OR ($7 = 'next30' AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) >= CURRENT_DATE AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) <= CURRENT_DATE + INTERVAL '30 days')
-          OR ($7 = 'over30' AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) > CURRENT_DATE + INTERVAL '30 days')
-          OR ($7 = 'no_date' AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) IS NULL)
-        )
+        AND ($3::TEXT[] IS NULL OR lu.status = ANY($3))
+        AND ($4::BIGINT IS NULL OR lu.batch_id = $4)
+        AND ($5::BIGINT IS NULL OR p.id = $5)
+        AND ($6::BIGINT IS NULL OR pr.id = $6)
+        AND ($7::BIGINT IS NULL OR lu.responsible_user_id = $7)
         AND (
           $8::TEXT IS NULL
-          OR lu.name ILIKE $8
-          OR lu.commercial_identifier ILIKE $8
-          OR lu.masked_code ILIKE $8
+          OR ($8 = 'overdue' AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) < CURRENT_DATE)
+          OR ($8 = 'next30' AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) >= CURRENT_DATE AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) <= CURRENT_DATE + INTERVAL '30 days')
+          OR ($8 = 'over30' AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) > CURRENT_DATE + INTERVAL '30 days')
+          OR ($8 = 'no_date' AND COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lu.expiration_date) IS NULL)
+        )
+        AND (
+          $9::TEXT IS NULL
+          OR lu.name ILIKE $9
+          OR lu.commercial_identifier ILIKE $9
+          OR lu.masked_code ILIKE $9
         )
       ORDER BY
         CASE
@@ -280,9 +284,21 @@ async function listLicenses(query) {
         COALESCE(lu.next_renewal_date, lu.redeem_deadline_date, lb.purchase_date) ASC,
         lb.purchase_date ASC,
         lu.id ASC
-      LIMIT $9 OFFSET $10
+      LIMIT $10 OFFSET $11
     `,
-    [includeInactive, status, batchId, productId, providerId, responsibleUserId, due, search, limit, offset]
+    [
+      includeInactive,
+      status,
+      statuses.length ? statuses : null,
+      batchId,
+      productId,
+      providerId,
+      responsibleUserId,
+      due,
+      search,
+      limit,
+      offset,
+    ]
   );
 
   return paginatedResponse(rows, page, limit);
@@ -522,6 +538,20 @@ async function updateLicense(id, payload, userId, ipAddress) {
 
     if (oldLicense.status === "activated" && payload.license_code !== undefined) {
       throw apiError("No se puede cambiar el código de una licencia activada");
+    }
+
+    if (oldLicense.status === "expired") {
+      const lockedFields = [
+        "validity_start_mode",
+        "start_date",
+        "next_renewal_date",
+        "redeem_deadline_date",
+        "expiration_date",
+      ];
+      const requestedLockedField = lockedFields.find((field) => payload[field] !== undefined);
+      if (requestedLockedField) {
+        throw apiError("No se pueden modificar fechas operativas de una licencia vencida", 409);
+      }
     }
 
     if (payload.batch_id !== undefined) {
