@@ -3,7 +3,7 @@ import Dashboard from './components/Dashboard'
 import DataModule from './components/DataModule'
 import LoginScreen from './components/LoginScreen'
 import NotificationCenter from './components/NotificationCenter'
-import { modules } from './config/modules'
+import { modules, rolePermissions } from './config/modules'
 import './App.css'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api'
@@ -61,7 +61,7 @@ function App() {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         message,
         type,
-        duration: type === 'error' ? 7000 : 5000,
+        duration: type === 'error' ? 7000 : type === 'success' ? 4500 : 5000,
       },
     ])
   }
@@ -85,6 +85,28 @@ function App() {
     setOpenGroups({})
   }
 
+  function canReadModule(moduleId) {
+    if (moduleId === 'dashboard') return rolePermissions[user?.role?.name]?.dashboard?.includes('read')
+    if (moduleId === 'expiredLicenses') return rolePermissions[user?.role?.name]?.licenses?.includes('read')
+    if (moduleId === 'audit') return rolePermissions[user?.role?.name]?.audit?.includes('read')
+    return rolePermissions[user?.role?.name]?.[moduleId]?.includes('read')
+  }
+
+  const visibleModules = modules
+    .map((module) => {
+      if (!module.children?.length) return canReadModule(module.id) ? module : null
+      const visibleChildren = module.children.filter((child) => canReadModule(child.id))
+      return visibleChildren.length ? { ...module, children: visibleChildren } : null
+    })
+    .filter(Boolean)
+
+  useEffect(() => {
+    if (!user) return
+    if (!canReadModule(activeModule)) {
+      setActiveModule('dashboard')
+    }
+  }, [user, activeModule])
+
   if (!token) {
     return <LoginScreen apiUrl={API_URL} onLogin={handleLogin} />
   }
@@ -101,7 +123,7 @@ function App() {
         </div>
 
         <nav className="nav-list" aria-label="Módulos">
-          {modules.map((module) => {
+          {visibleModules.map((module) => {
             const isGroup = Boolean(module.children?.length)
             const isOpen = openGroups[module.id]
             const hasActiveChild = module.children?.some((child) => child.id === activeModule)

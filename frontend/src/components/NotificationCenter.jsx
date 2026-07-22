@@ -11,6 +11,12 @@ function NotificationCenter({ notifications, onDismiss }) {
 
   if (!notifications.length) return null
 
+  function notificationTitle(type) {
+    if (type === 'error') return 'Error'
+    if (type === 'success') return 'Operación exitosa'
+    return 'Mensaje'
+  }
+
   return (
     <div className="notification-stack" aria-live="polite" aria-label="Notificaciones">
       {notifications.map((notification) => (
@@ -20,7 +26,7 @@ function NotificationCenter({ notifications, onDismiss }) {
           role="status"
         >
           <div>
-            <span>{notification.type === 'error' ? 'Atención' : 'Mensaje'}</span>
+            <span>{notificationTitle(notification.type)}</span>
             <p>{notification.message}</p>
           </div>
           <button

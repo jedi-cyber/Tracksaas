@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Modal from './Modal'
+import { LoadingState } from './StateMessage'
 import { formatValue, statusClass } from '../utils/formatters'
 
 function LicenseDetailModal({ api, license, setError, onClose }) {
@@ -51,7 +52,7 @@ function LicenseDetailModal({ api, license, setError, onClose }) {
   return (
     <Modal title="Ficha de licencia" eyebrow="Detalle" onClose={onClose} size="large">
       {loading ? (
-        <p>Cargando ficha...</p>
+        <LoadingState message="Cargando ficha e historial operativo." />
       ) : (
         <div className="license-sheet">
           {importantReason && (

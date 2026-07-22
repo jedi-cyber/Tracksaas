@@ -193,6 +193,12 @@ button:disabled {
   color: #991b1b;
 }
 
+.notification-success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
 .notification-close {
   width: 32px;
   height: 32px;
@@ -643,7 +649,7 @@ button:disabled {
 
 .modal-window {
   width: min(760px, 100%);
-  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
   overflow: auto;
   box-sizing: border-box;
   padding: 18px;
@@ -1060,6 +1066,69 @@ td {
   text-align: center;
 }
 
+.state-message {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  min-height: 92px;
+  padding: 20px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+  text-align: left;
+}
+
+.state-message strong,
+.state-message p {
+  display: block;
+}
+
+.state-message strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.state-message p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.state-message-loading {
+  border-style: solid;
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+.state-message-error {
+  border-color: #fecaca;
+  border-style: solid;
+  background: #fef2f2;
+}
+
+.state-message-error strong,
+.state-message-error p {
+  color: #991b1b;
+}
+
+.loading-spinner {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border: 3px solid #bfdbfe;
+  border-top-color: #1769aa;
+  border-radius: 999px;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .pagination-bar {
   display: flex;
   flex-wrap: wrap;
@@ -1183,5 +1252,126 @@ td {
   .alert-summary,
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 540px) {
+  body {
+    overflow-x: hidden;
+  }
+
+  .login-page,
+  .main-panel {
+    padding: 12px;
+  }
+
+  .sidebar {
+    min-height: auto;
+    padding: 16px;
+  }
+
+  .modal-backdrop {
+    align-items: stretch;
+    place-items: stretch;
+    padding: 8px;
+  }
+
+  .modal-window,
+  .modal-large {
+    width: 100%;
+    max-height: calc(100dvh - 16px);
+    padding: 12px;
+    border-radius: 8px;
+  }
+
+  .modal-window .section-header {
+    position: sticky;
+    top: -12px;
+    z-index: 2;
+    margin: -12px -12px 12px;
+    padding: 12px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+  }
+
+  .modal-window .section-header h3 {
+    font-size: 17px;
+    line-height: 1.25;
+  }
+
+  .modal-window .section-header button {
+    width: auto;
+    min-width: 84px;
+    padding: 8px 10px;
+  }
+
+  .wizard-panel,
+  .entity-form,
+  .license-sheet {
+    gap: 12px;
+  }
+
+  .wizard-steps {
+    gap: 6px;
+  }
+
+  .wizard-steps button {
+    min-height: 44px;
+    padding: 8px 6px;
+    font-size: 13px;
+    white-space: normal;
+  }
+
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 16px;
+  }
+
+  textarea {
+    min-height: 96px;
+  }
+
+  .password-toggle-button {
+    width: 40px;
+    height: 36px;
+  }
+
+  .guide-text,
+  .important-reason,
+  .detail-grid div,
+  .audit-timeline div {
+    padding: 10px;
+  }
+
+  .review-list {
+    gap: 10px;
+  }
+
+  .review-list p {
+    overflow-wrap: anywhere;
+  }
+
+  .field-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inline-create-button {
+    width: 100%;
+  }
+
+  .table-wrap {
+    margin-inline: -4px;
+  }
+
+  table {
+    min-width: 720px;
+  }
+
+  .actions-menu-panel {
+    max-width: calc(100vw - 16px);
   }
 }

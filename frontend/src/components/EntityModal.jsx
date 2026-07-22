@@ -3,6 +3,7 @@ import { formConfig as allFormConfig, tableConfig as allTableConfig } from '../c
 import Modal from './Modal'
 import { formatValue } from '../utils/formatters'
 import { buildPayload, initialFormState, validateForm } from '../utils/forms'
+import { LoadingState } from './StateMessage'
 
 function EntityModal({
   api,
@@ -98,7 +99,7 @@ function EntityModal({
         <form className="entity-form" onSubmit={submit}>
           {guideText && <p className="guide-text">{guideText}</p>}
           {loadingOptions ? (
-            <p>Cargando opciones...</p>
+            <LoadingState message="Cargando opciones del formulario." />
           ) : (
             <div className="form-grid">
 	              {editableFields.map((field) => {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatValue, statusClass } from '../utils/formatters'
+import { EmptyState } from './StateMessage'
 
 function DataTable({ rows, columns, actions, moduleId }) {
   const [openMenuId, setOpenMenuId] = useState(null)
@@ -18,7 +19,7 @@ function DataTable({ rows, columns, actions, moduleId }) {
   }, [])
 
   if (!rows?.length) {
-    return <div className="empty-state">No hay registros para mostrar.</div>
+    return <EmptyState message="No hay registros para mostrar con los filtros actuales." />
   }
 
   return (

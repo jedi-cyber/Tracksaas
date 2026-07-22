@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { formConfig, tableConfig } from '../config/modules'
 import EntityModal from './EntityModal'
 import Modal from './Modal'
+import { LoadingState } from './StateMessage'
 
 const COMMERCIAL_IDENTIFIER_PATTERN = '[A-Za-z0-9][A-Za-z0-9._/#: +()\\-]{1,179}'
 const LICENSE_CODE_PATTERN = '([A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}|[A-Za-z0-9]{5}-[A-Za-z0-9]{5}-[A-Za-z0-9]{5}-[A-Za-z0-9]{5}-[A-Za-z0-9]{5}|[A-Za-z0-9]{20}|[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{4})'
@@ -228,7 +229,7 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
         </div>
 
         {loadingOptions ? (
-          <p>Cargando opciones...</p>
+          <LoadingState message="Cargando lotes y usuarios disponibles." />
         ) : (
           <>
             {step === 1 && (

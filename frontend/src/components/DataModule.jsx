@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import ActivationModal from './ActivationModal'
+import ConfirmModal from './ConfirmModal'
 import DataTable from './DataTable'
 import EntityModal from './EntityModal'
 import LicenseDetailModal from './LicenseDetailModal'
 import LicenseWizard from './LicenseWizard'
 import ReasonModal from './ReasonModal'
+import { EmptyState, LoadingState } from './StateMessage'
 import { formConfig, rolePermissions, tableConfig } from '../config/modules'
 import { formatValue } from '../utils/formatters'
 
@@ -39,11 +41,14 @@ function DataModule({ api, moduleId, setError, user }) {
   const [activationRow, setActivationRow] = useState(null)
   const [guidedModal, setGuidedModal] = useState(null)
   const [reasonAction, setReasonAction] = useState(null)
+  const [confirmAction, setConfirmAction] = useState(null)
   const permissions = rolePermissions[user?.role?.name]?.[moduleId] || (isLicenseModule ? rolePermissions[user?.role?.name]?.licenses : []) || []
   const licensePermissions = rolePermissions[user?.role?.name]?.licenses || []
   const canCreate = permissions.includes('create')
   const canUpdate = permissions.includes('update')
   const canDelete = permissions.includes('delete')
+  const canRead = permissions.includes('read')
+  const canExpire = permissions.includes('expire')
   const canUpdateLicense = licensePermissions.includes('update')
   const canCreateLicense = moduleId === 'licenses' && permissions.includes('create')
 
@@ -112,6 +117,7 @@ function DataModule({ api, moduleId, setError, user }) {
     setActivationRow(null)
     setGuidedModal(null)
     setReasonAction(null)
+    setConfirmAction(null)
     setSearchTerm('')
     setFilters(EMPTY_FILTERS)
     setPage(1)
@@ -173,7 +179,7 @@ function DataModule({ api, moduleId, setError, user }) {
           })
           setReasonAction(null)
           await load()
-          setError('Licencia marcada como expirada.', 'info')
+          setError('Licencia marcada como expirada.', 'success')
         },
       })
       return
@@ -192,7 +198,7 @@ function DataModule({ api, moduleId, setError, user }) {
           })
           setReasonAction(null)
           await load()
-          setError('Licencia cancelada.', 'info')
+          setError('Licencia cancelada.', 'success')
         },
       })
       return
@@ -248,42 +254,61 @@ function DataModule({ api, moduleId, setError, user }) {
     setShowLicenseWizard(false)
   }
 
-  async function removeRow(row) {
-    const verb = moduleId === 'batches' || moduleId === 'licenses' ? 'cancelar' : 'desactivar'
-    if (!window.confirm(`¿Confirmas ${verb} este registro?`)) {
-      return
-    }
-
+  async function executeRemoveRow(row) {
     try {
       await api.request(`${config.path}/${row.id}`, { method: 'DELETE' })
       setFormMode(null)
       setSelectedRow(null)
+      setConfirmAction(null)
       await load()
+      setError(`${moduleId === 'batches' ? 'Registro cancelado' : 'Registro desactivado'}.`, 'success')
     } catch (err) {
       setError(err.message)
     }
   }
 
-  async function reactivateRow(row) {
+  function removeRow(row) {
+    const verb = moduleId === 'batches' || moduleId === 'licenses' ? 'cancelar' : 'desactivar'
+    const title = moduleId === 'batches' ? 'Cancelar lote' : 'Desactivar registro'
+    const label = moduleId === 'batches' ? 'Cancelar lote' : 'Desactivar'
+
+    setConfirmAction({
+      title,
+      confirmLabel: label,
+      danger: true,
+      description: `Confirma si deseas ${verb} este registro. La acción no elimina físicamente la información; se conserva para auditoría e historial.`,
+      onConfirm: () => executeRemoveRow(row),
+    })
+  }
+
+  async function executeReactivateRow(row) {
     const payload = moduleId === 'batches'
       ? { active: true, status: 'draft' }
       : moduleId === 'licenses'
         ? { active: true, status: 'available' }
         : { active: true }
 
-    if (!window.confirm('¿Confirmas reactivar este registro?')) {
-      return
-    }
-
     try {
       await api.request(`${config.path}/${row.id}`, {
         method: 'PUT',
         body: JSON.stringify(payload),
       })
+      setConfirmAction(null)
       await load()
+      setError('Registro reactivado.', 'success')
     } catch (err) {
       setError(err.message)
     }
+  }
+
+  function reactivateRow(row) {
+    setConfirmAction({
+      title: 'Reactivar registro',
+      confirmLabel: 'Reactivar',
+      danger: false,
+      description: 'Confirma si deseas volver a activar este registro para que pueda usarse nuevamente.',
+      onConfirm: () => executeReactivateRow(row),
+    })
   }
 
   function isInactiveRow(row) {
@@ -294,6 +319,11 @@ function DataModule({ api, moduleId, setError, user }) {
     if (row.status === 'available') {
       return (
         <>
+          {canRead && (
+            <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+              Ver ficha
+            </button>
+          )}
           {canUpdate && (
             <button type="button" onClick={() => openEditForm(row)}>
               Editar
@@ -309,7 +339,7 @@ function DataModule({ api, moduleId, setError, user }) {
               Activar ahora
             </button>
           )}
-          {canUpdate && (
+          {canExpire && (
             <button type="button" className="danger-button" onClick={() => licenseAction(row.id, 'mark-expired')}>
               Marcar expirada
             </button>
@@ -326,6 +356,11 @@ function DataModule({ api, moduleId, setError, user }) {
     if (row.status === 'reserved') {
       return (
         <>
+          {canRead && (
+            <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+              Ver ficha
+            </button>
+          )}
           {canUpdate && (
             <button type="button" onClick={() => openEditForm(row)}>
               Editar
@@ -341,7 +376,7 @@ function DataModule({ api, moduleId, setError, user }) {
               Activar ahora
             </button>
           )}
-          {canUpdate && (
+          {canExpire && (
             <button type="button" className="danger-button" onClick={() => licenseAction(row.id, 'mark-expired')}>
               Marcar expirada
             </button>
@@ -358,9 +393,11 @@ function DataModule({ api, moduleId, setError, user }) {
     if (row.status === 'activated') {
       return (
         <>
-          <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
-            Ver activación
-          </button>
+          {canRead && (
+            <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+              Ver activación
+            </button>
+          )}
           {canUpdate && (
             <button type="button" onClick={() => openEditForm(row)}>
               Editar datos
@@ -373,9 +410,11 @@ function DataModule({ api, moduleId, setError, user }) {
     if (row.status === 'expired') {
       return (
         <>
-          <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
-            Ver motivo
-          </button>
+          {canRead && (
+            <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+              Ver motivo
+            </button>
+          )}
           {canUpdate && (
             <button type="button" onClick={() => openEditForm(row)}>
               Editar datos
@@ -394,18 +433,22 @@ function DataModule({ api, moduleId, setError, user }) {
     }
 
     return (
-      <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
-        Ver ficha
-      </button>
+      canRead ? (
+        <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+          Ver ficha
+        </button>
+      ) : null
     )
   }
 
   function renderGenericActions(row) {
     return (
       <>
-        <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
-          Ver
-        </button>
+        {canRead && (
+          <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+            Ver
+          </button>
+        )}
         {entityForm && canUpdate && (
           <button type="button" onClick={() => openEditForm(row)}>
             Editar
@@ -416,7 +459,7 @@ function DataModule({ api, moduleId, setError, user }) {
             Reactivar
           </button>
         )}
-        {(canDelete || permissions.includes('delete')) && !isInactiveRow(row) && (
+        {canDelete && !isInactiveRow(row) && (
           <button type="button" className="danger-button" onClick={() => removeRow(row)}>
             {moduleId === 'batches' ? 'Cancelar' : 'Desactivar'}
           </button>
@@ -428,9 +471,11 @@ function DataModule({ api, moduleId, setError, user }) {
   function renderActivationActions(row) {
     return (
       <>
-        <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
-          Ver activación
-        </button>
+        {permissions.includes('read') && (
+          <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+            Ver activación
+          </button>
+        )}
         {canUpdateLicense && (
           <button type="button" onClick={() => openLicenseEditForm(row)}>
             Editar datos
@@ -546,6 +591,13 @@ function DataModule({ api, moduleId, setError, user }) {
   }
 
   if (!config) return null
+  if (!canRead) {
+    return (
+      <section className="content-block">
+        <EmptyState message="No tienes permisos para ver este módulo." />
+      </section>
+    )
+  }
 
   function renderPagination() {
     if (!pagination) return null
@@ -677,6 +729,17 @@ function DataModule({ api, moduleId, setError, user }) {
         />
       )}
 
+      {confirmAction && (
+        <ConfirmModal
+          title={confirmAction.title}
+          description={confirmAction.description}
+          confirmLabel={confirmAction.confirmLabel}
+          danger={confirmAction.danger}
+          onClose={() => setConfirmAction(null)}
+          onConfirm={confirmAction.onConfirm}
+        />
+      )}
+
       {isLicenseDetailModule && formMode === 'detail' && selectedRow && (
         <LicenseDetailModal
           api={api}
@@ -753,7 +816,7 @@ function DataModule({ api, moduleId, setError, user }) {
       )}
 
       {loading ? (
-        <p>Cargando registros...</p>
+        <LoadingState message="Buscando registros del módulo." />
       ) : (
         <>
           <DataTable

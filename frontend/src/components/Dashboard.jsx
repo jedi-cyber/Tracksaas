@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import DataTable from './DataTable'
+import { EmptyState, LoadingState } from './StateMessage'
 import { formatValue, statusClass } from '../utils/formatters'
 
 function Dashboard({ api, setError }) {
@@ -49,8 +50,8 @@ function Dashboard({ api, setError }) {
     }
   }
 
-  if (loading) return <section className="content-block">Cargando dashboard...</section>
-  if (!overview) return <section className="content-block">Sin datos disponibles.</section>
+  if (loading) return <section className="content-block"><LoadingState message="Preparando resumen del sistema." /></section>
+  if (!overview) return <section className="content-block"><EmptyState message="No hay datos disponibles para el dashboard." /></section>
 
   const status = overview.licensesByStatus || {}
   const inventory = overview.inventory || {}
