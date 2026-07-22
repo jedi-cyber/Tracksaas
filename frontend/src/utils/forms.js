@@ -24,7 +24,7 @@ export function buildPayload(fields, form, mode) {
   return fields.reduce((payload, field) => {
     const value = form[field.name]
 
-    if (mode === 'edit' && field.name === 'password' && !value) {
+    if (mode === 'edit' && field.requiredOnCreate && !value) {
       return payload
     }
 

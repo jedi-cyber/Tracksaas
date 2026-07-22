@@ -22,9 +22,11 @@ function DataModule({ api, moduleId, setError, user }) {
   const [guidedModal, setGuidedModal] = useState(null)
   const [reasonAction, setReasonAction] = useState(null)
   const permissions = rolePermissions[user?.role?.name]?.[moduleId] || []
+  const licensePermissions = rolePermissions[user?.role?.name]?.licenses || []
   const canCreate = permissions.includes('create')
   const canUpdate = permissions.includes('update')
   const canDelete = permissions.includes('delete')
+  const canUpdateLicense = licensePermissions.includes('update')
   const canCreateLicense = moduleId === 'licenses' && permissions.includes('create')
 
   async function load(searchOverride) {
@@ -136,6 +138,18 @@ function DataModule({ api, moduleId, setError, user }) {
     setShowLicenseWizard(false)
   }
 
+  async function openLicenseEditForm(row) {
+    try {
+      const licenseId = row.license_unit_id || row.id
+      const body = await api.request(`/licenses/${licenseId}`)
+      setSelectedRow(body.data)
+      setFormMode('license-edit')
+      setShowLicenseWizard(false)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   function openDetail(row) {
     setSelectedRow(row)
     setFormMode('detail')
@@ -188,6 +202,11 @@ function DataModule({ api, moduleId, setError, user }) {
     if (row.status === 'available') {
       return (
         <>
+          {canUpdate && (
+            <button type="button" onClick={() => openEditForm(row)}>
+              Editar
+            </button>
+          )}
           {permissions.includes('reserve') && (
             <button type="button" onClick={() => licenseAction(row.id, 'reserve')}>
               Reservar
@@ -215,6 +234,11 @@ function DataModule({ api, moduleId, setError, user }) {
     if (row.status === 'reserved') {
       return (
         <>
+          {canUpdate && (
+            <button type="button" onClick={() => openEditForm(row)}>
+              Editar
+            </button>
+          )}
           {permissions.includes('reserve') && (
             <button type="button" onClick={() => licenseAction(row.id, 'release-reservation')}>
               Liberar reserva
@@ -241,17 +265,31 @@ function DataModule({ api, moduleId, setError, user }) {
 
     if (row.status === 'activated') {
       return (
-        <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
-          Ver activación
-        </button>
+        <>
+          <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+            Ver activación
+          </button>
+          {canUpdate && (
+            <button type="button" onClick={() => openEditForm(row)}>
+              Editar datos
+            </button>
+          )}
+        </>
       )
     }
 
     if (row.status === 'expired') {
       return (
-        <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
-          Ver motivo
-        </button>
+        <>
+          <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+            Ver motivo
+          </button>
+          {canUpdate && (
+            <button type="button" onClick={() => openEditForm(row)}>
+              Editar datos
+            </button>
+          )}
+        </>
       )
     }
 
@@ -297,9 +335,16 @@ function DataModule({ api, moduleId, setError, user }) {
 
   function renderActivationActions(row) {
     return (
-      <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
-        Ver activación
-      </button>
+      <>
+        <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
+          Ver activación
+        </button>
+        {canUpdateLicense && (
+          <button type="button" onClick={() => openLicenseEditForm(row)}>
+            Editar datos
+          </button>
+        )}
+      </>
     )
   }
 
@@ -452,6 +497,27 @@ function DataModule({ api, moduleId, setError, user }) {
             } else {
               await load()
             }
+          }}
+        />
+      )}
+
+      {formMode === 'license-edit' && selectedRow && (
+        <EntityModal
+          api={api}
+          config={tableConfig.licenses}
+          formConfig={formConfig.licenses}
+          mode="edit"
+          row={selectedRow}
+          guideText="Edita datos administrativos de la licencia. La activación, cancelación y expiración se realizan desde acciones guiadas."
+          setError={setError}
+          onClose={() => {
+            setFormMode(null)
+            setSelectedRow(null)
+          }}
+          onSaved={async () => {
+            setFormMode(null)
+            setSelectedRow(null)
+            await load()
           }}
         />
       )}

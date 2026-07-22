@@ -3,6 +3,7 @@ import { useState } from 'react'
 function LoginScreen({ apiUrl, onLogin }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -56,17 +57,28 @@ function LoginScreen({ apiUrl, onLogin }) {
             />
           </label>
 
-          <label>
-            Contraseña
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
-              placeholder="Contraseña"
-              required
-            />
-          </label>
+	          <label>
+	            Contraseña
+	            <div className="password-field-wrapper">
+	              <input
+	                type={showPassword ? 'text' : 'password'}
+	                value={password}
+	                onChange={(event) => setPassword(event.target.value)}
+	                autoComplete="current-password"
+	                placeholder="Contraseña"
+	                required
+	              />
+	              <button
+	                type="button"
+	                className="password-toggle-button"
+	                onClick={() => setShowPassword((current) => !current)}
+	                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+	                title={showPassword ? 'Ocultar' : 'Mostrar'}
+	              >
+	                <span aria-hidden="true">&#128065;</span>
+	              </button>
+	            </div>
+	          </label>
 
           {error && <div className="form-error">{error}</div>}
 

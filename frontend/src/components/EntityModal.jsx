@@ -26,6 +26,7 @@ function EntityModal({
   const [relatedModal, setRelatedModal] = useState(null)
   const isDetail = mode === 'detail'
   const title = mode === 'create' ? `Nuevo: ${config.title}` : mode === 'edit' ? `Editar: ${config.title}` : `Detalle: ${config.title}`
+  const editableFields = formConfig.fields.filter((field) => !shouldHideField(field, row, mode, form))
 
   useEffect(() => {
     setForm(initialFormState(formConfig.fields, row, mode, safeInitialValues))
@@ -58,7 +59,7 @@ function EntityModal({
 
   async function submit(event) {
     event.preventDefault()
-    const validationError = validateForm(formConfig.fields, form, mode)
+	    const validationError = validateForm(editableFields, form, mode)
 
     if (validationError) {
       setError(validationError)
@@ -69,7 +70,7 @@ function EntityModal({
     setError('')
 
     try {
-      const payload = buildPayload(formConfig.fields, form, mode)
+	      const payload = buildPayload(editableFields, form, mode)
       const body = await api.request(mode === 'create' ? config.path : `${config.path}/${row.id}`, {
         method: mode === 'create' ? 'POST' : 'PUT',
         body: JSON.stringify(payload),
@@ -100,7 +101,7 @@ function EntityModal({
             <p>Cargando opciones...</p>
           ) : (
             <div className="form-grid">
-              {formConfig.fields.map((field) => {
+	              {editableFields.map((field) => {
                 const optionConfig = (formConfig.options || []).find(
                   (source) => source.name === field.optionSource
                 )
@@ -123,7 +124,7 @@ function EntityModal({
                     optionConfig={optionConfig}
                     options={options[field.optionSource] || []}
                     relatedAction={relatedActions[field.name] || generatedAction}
-                    disabled={saving}
+	                    disabled={saving || shouldDisableField(field, row, mode)}
                     mode={mode}
                     onChange={(value) => updateField(field.name, value)}
                   />
@@ -168,6 +169,7 @@ function EntityModal({
 }
 
 function FieldControl({ field, value, optionConfig, options, relatedAction, disabled, mode, onChange }) {
+  const [showSecret, setShowSecret] = useState(false)
   const className = field.full ? 'full-span' : ''
   const required = field.required || (mode === 'create' && field.requiredOnCreate)
 
@@ -239,6 +241,45 @@ function FieldControl({ field, value, optionConfig, options, relatedAction, disa
     )
   }
 
+  if (field.type === 'password') {
+    return (
+      <label className={className}>
+        {field.label}
+        <div className="password-field-wrapper">
+          <input
+            type={showSecret ? 'text' : 'password'}
+            value={value || ''}
+            required={required}
+            min={field.min}
+            step={field.step}
+            pattern={field.pattern}
+            title={field.title}
+            maxLength={field.maxLength}
+            disabled={disabled}
+            placeholder={field.requiredOnCreate && mode === 'edit' ? 'Dejar vacío para conservar' : ''}
+            onChange={(event) => {
+              const nextValue = field.transform === 'uppercase'
+                ? event.target.value.toUpperCase()
+                : event.target.value
+              onChange(nextValue)
+            }}
+          />
+          <button
+            type="button"
+            className="password-toggle-button"
+            disabled={disabled}
+            onClick={() => setShowSecret((current) => !current)}
+            aria-label={showSecret ? `Ocultar ${field.label}` : `Mostrar ${field.label}`}
+            title={showSecret ? 'Ocultar' : 'Mostrar'}
+          >
+            <span aria-hidden="true">&#128065;</span>
+          </button>
+        </div>
+        {field.help && <span className="field-help">{field.help}</span>}
+      </label>
+    )
+  }
+
   return (
     <label className={className}>
       {field.label}
@@ -263,6 +304,21 @@ function FieldControl({ field, value, optionConfig, options, relatedAction, disa
       {field.help && <span className="field-help">{field.help}</span>}
     </label>
   )
+}
+
+function shouldHideField(field, row, mode, form = {}) {
+  if (mode === 'edit' && field.hideOnEdit) return true
+  if (mode === 'edit' && field.hideOnEditForStatuses?.includes(row?.status)) return true
+  if (field.showWhen) {
+    return !Object.entries(field.showWhen).every(([key, expected]) => form?.[key] === expected)
+  }
+  if (mode !== 'edit' || !field.hideOnEditWhen) return false
+  return Object.entries(field.hideOnEditWhen).every(([key, expected]) => row?.[key] === expected)
+}
+
+function shouldDisableField(field, row, mode) {
+  if (mode !== 'edit' || !field.disabledOnEditWhen) return false
+  return Object.entries(field.disabledOnEditWhen).every(([key, expected]) => row?.[key] === expected)
 }
 
 export default EntityModal

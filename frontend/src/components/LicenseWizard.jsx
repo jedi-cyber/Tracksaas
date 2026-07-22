@@ -12,6 +12,7 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
   const [saving, setSaving] = useState(false)
   const [loadingOptions, setLoadingOptions] = useState(true)
   const [showBatchModal, setShowBatchModal] = useState(false)
+  const [showLicenseCode, setShowLicenseCode] = useState(false)
   const [batches, setBatches] = useState([])
   const [users, setUsers] = useState([])
   const [form, setForm] = useState({
@@ -258,18 +259,30 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
                   <span className="field-help">Identifica familia, producto, contrato, SKU o canal comercial. Es visible y no activa el software.</span>
                 </label>
 
-                <label>
-                  Clave única de activación
-                  <input
-                    value={form.license_code}
-                    onChange={(event) => updateField('license_code', event.target.value.toUpperCase())}
-                    placeholder="ESET 5x4, Microsoft 5x5, Kaspersky 20, Adobe 6x4"
-                    pattern={LICENSE_CODE_PATTERN}
-                    title="Formatos válidos: ESET 5 bloques de 4, Microsoft 5 bloques de 5, Kaspersky 20 caracteres corridos, Adobe 6 bloques numéricos de 4."
-                    required
-                  />
-                  <span className="field-help">Depende del fabricante. Es confidencial, se cifra en base de datos y solo se muestra enmascarada.</span>
-                </label>
+	                <label>
+	                  Clave única de activación
+	                  <div className="password-field-wrapper">
+	                    <input
+	                      type={showLicenseCode ? 'text' : 'password'}
+	                      value={form.license_code}
+	                      onChange={(event) => updateField('license_code', event.target.value.toUpperCase())}
+	                      placeholder="ESET 5x4, Microsoft 5x5, Kaspersky 20, Adobe 6x4"
+	                      pattern={LICENSE_CODE_PATTERN}
+	                      title="Formatos válidos: ESET 5 bloques de 4, Microsoft 5 bloques de 5, Kaspersky 20 caracteres corridos, Adobe 6 bloques numéricos de 4."
+	                      required
+	                    />
+	                    <button
+	                      type="button"
+	                      className="password-toggle-button"
+	                      onClick={() => setShowLicenseCode((current) => !current)}
+	                      aria-label={showLicenseCode ? 'Ocultar clave única' : 'Mostrar clave única'}
+	                      title={showLicenseCode ? 'Ocultar' : 'Mostrar'}
+	                    >
+	                      <span aria-hidden="true">&#128065;</span>
+	                    </button>
+	                  </div>
+	                  <span className="field-help">Depende del fabricante. Es confidencial, se cifra en base de datos y solo se muestra enmascarada.</span>
+	                </label>
               </div>
             )}
 

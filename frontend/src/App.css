@@ -68,6 +68,39 @@ input[readonly] {
   cursor: not-allowed;
 }
 
+.password-field-wrapper {
+  position: relative;
+  display: block;
+}
+
+.password-field-wrapper input {
+  padding-right: 48px;
+}
+
+.password-toggle-button {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #475569;
+}
+
+.password-toggle-button:hover {
+  background: #e8eef6;
+  color: #16324f;
+}
+
+.password-toggle-button:disabled {
+  background: transparent;
+}
+
 textarea {
   resize: vertical;
 }
@@ -753,6 +786,7 @@ button:disabled {
 .table-wrap {
   width: 100%;
   overflow-x: auto;
+  overflow-y: visible;
 }
 
 table {
@@ -802,14 +836,49 @@ td {
 }
 
 .row-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 6px;
+  min-width: 170px;
 }
 
 .row-actions button {
+  width: 100%;
+  justify-content: flex-start;
   padding: 7px 9px;
   font-size: 13px;
+}
+
+.actions-cell {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.actions-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.actions-menu-trigger {
+  min-width: 94px;
+}
+
+.actions-menu-panel {
+  position: absolute;
+  right: 0;
+  z-index: 20;
+  min-width: 190px;
+  margin-top: 6px;
+  padding: 8px;
+  border: 1px solid #d8e1ec;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.18);
+}
+
+.floating-actions-menu {
+  position: fixed;
+  right: auto;
+  margin-top: 0;
 }
 
 .empty-state {
