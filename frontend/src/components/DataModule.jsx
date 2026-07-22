@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ActivationModal from './ActivationModal'
 import DataTable from './DataTable'
 import EntityModal from './EntityModal'
 import LicenseWizard from './LicenseWizard'
@@ -10,10 +11,12 @@ function DataModule({ api, moduleId, setError, user }) {
   const [rows, setRows] = useState([])
   const [pagination, setPagination] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
   const [showLicenseWizard, setShowLicenseWizard] = useState(false)
   const [licenseWizardInitialValues, setLicenseWizardInitialValues] = useState({})
   const [formMode, setFormMode] = useState(null)
   const [selectedRow, setSelectedRow] = useState(null)
+  const [activationRow, setActivationRow] = useState(null)
   const [guidedModal, setGuidedModal] = useState(null)
   const permissions = rolePermissions[user?.role?.name]?.[moduleId] || []
   const canCreate = permissions.includes('create')
@@ -21,12 +24,18 @@ function DataModule({ api, moduleId, setError, user }) {
   const canDelete = permissions.includes('delete')
   const canCreateLicense = moduleId === 'licenses' && permissions.includes('create')
 
-  async function load() {
+  async function load(searchOverride) {
     if (!config) return
     setLoading(true)
     try {
-      const body = await api.request(`${config.path}?limit=25&includeInactive=true`)
-      setRows(body.data || [])
+      const limit = ['licenses', 'activations'].includes(moduleId) ? 100 : 25
+      const effectiveSearch = searchOverride !== undefined ? searchOverride : searchTerm
+      const searchQuery = effectiveSearch.trim() ? `&search=${encodeURIComponent(effectiveSearch.trim())}` : ''
+      const body = await api.request(`${config.path}?limit=${limit}&includeInactive=true${searchQuery}`)
+      const nextRows = moduleId === 'licenses'
+        ? (body.data || []).filter((row) => ['available', 'reserved'].includes(row.status))
+        : body.data || []
+      setRows(nextRows)
       setPagination(body.pagination || null)
     } catch (err) {
       setError(err.message)
@@ -41,11 +50,34 @@ function DataModule({ api, moduleId, setError, user }) {
     setSelectedRow(null)
     setShowLicenseWizard(false)
     setLicenseWizardInitialValues({})
+    setActivationRow(null)
     setGuidedModal(null)
-    load()
+    setSearchTerm('')
+    load('')
   }, [config?.path])
 
   async function licenseAction(id, action) {
+    if (action === 'mark-expired') {
+      if (!window.confirm('¿Confirmas marcar esta licencia como expirada? Usa esta acción cuando el proveedor rechaza una licencia física o no activada.')) {
+        return
+      }
+
+      try {
+        await api.request(`/licenses/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            status: 'expired',
+            expiration_date: new Date().toISOString().slice(0, 10),
+          }),
+        })
+        await load()
+        setError('Licencia marcada como expirada.', 'info')
+      } catch (err) {
+        setError(err.message)
+      }
+      return
+    }
+
     const path = action === 'cancel' ? `/licenses/${id}` : `/licenses/${id}/${action}`
     const method = action === 'cancel' ? 'DELETE' : 'POST'
 
@@ -121,6 +153,35 @@ function DataModule({ api, moduleId, setError, user }) {
     return row.active === false || row.status === 'cancelled'
   }
 
+  function renderModuleSummary() {
+    if (moduleId !== 'activations' || loading) return null
+
+    const expiringSoon = rows.filter((row) => Number(row.days_remaining) >= 0 && Number(row.days_remaining) <= 30).length
+    const expired = rows.filter((row) => Number(row.days_remaining) < 0).length
+    const healthy = rows.filter((row) => Number(row.days_remaining) > 30).length
+
+    return (
+      <div className="module-summary">
+        <div>
+          <span>Activadas</span>
+          <strong>{rows.length}</strong>
+        </div>
+        <div>
+          <span>Por vencer</span>
+          <strong>{expiringSoon}</strong>
+        </div>
+        <div>
+          <span>Vencidas</span>
+          <strong>{expired}</strong>
+        </div>
+        <div>
+          <span>Sin riesgo</span>
+          <strong>{healthy}</strong>
+        </div>
+      </div>
+    )
+  }
+
   if (!config) return null
 
   return (
@@ -129,9 +190,22 @@ function DataModule({ api, moduleId, setError, user }) {
         <div>
           <span className="eyebrow">Módulo</span>
           <h3>{config.title}</h3>
-          {pagination && <p>{pagination.total} registros encontrados</p>}
+          {pagination && (
+            <p>{moduleId === 'licenses' ? rows.length : pagination.total} registros encontrados</p>
+          )}
         </div>
         <div className="header-actions">
+          {['licenses', 'activations'].includes(moduleId) && (
+            <input
+              className="module-search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') load()
+              }}
+              placeholder={moduleId === 'activations' ? 'Buscar activada...' : 'Buscar licencia...'}
+            />
+          )}
           {entityForm && canCreate && moduleId !== 'licenses' && (
             <button type="button" onClick={openCreateForm}>
               Nuevo
@@ -145,14 +219,16 @@ function DataModule({ api, moduleId, setError, user }) {
                 setShowLicenseWizard(true)
               }}
             >
-              Nueva Activación
+              Registrar licencia
             </button>
           )}
           <button type="button" className="secondary-button" onClick={load}>
-            Actualizar
+            {searchTerm.trim() ? 'Buscar' : 'Actualizar'}
           </button>
         </div>
       </div>
+
+      {renderModuleSummary()}
 
       {showLicenseWizard && (
         <LicenseWizard
@@ -163,6 +239,20 @@ function DataModule({ api, moduleId, setError, user }) {
           onCreated={async () => {
             setShowLicenseWizard(false)
             setLicenseWizardInitialValues({})
+            await load()
+          }}
+        />
+      )}
+
+      {activationRow && (
+        <ActivationModal
+          api={api}
+          license={activationRow}
+          setError={setError}
+          user={user}
+          onClose={() => setActivationRow(null)}
+          onActivated={async () => {
+            setActivationRow(null)
             await load()
           }}
         />
@@ -214,6 +304,7 @@ function DataModule({ api, moduleId, setError, user }) {
         <p>Cargando registros...</p>
       ) : (
         <DataTable
+          moduleId={moduleId}
           rows={rows}
           columns={config.columns}
           actions={
@@ -223,36 +314,43 @@ function DataModule({ api, moduleId, setError, user }) {
                   <button type="button" className="secondary-button" onClick={() => openDetail(row)}>
                     Ver
                   </button>
-                  {entityForm && canUpdate && (
-                    <button type="button" onClick={() => openEditForm(row)}>
-                      Editar
-                    </button>
+	                  {entityForm && canUpdate && moduleId !== 'licenses' && (
+	                    <button type="button" onClick={() => openEditForm(row)}>
+	                      Editar
+	                    </button>
                   )}
-                  {moduleId === 'licenses' && permissions.includes('reserve') && (
-                    <>
-                      <button type="button" onClick={() => licenseAction(row.id, 'reserve')}>
-                        Reservar
-                      </button>
-                      <button type="button" onClick={() => licenseAction(row.id, 'release-reservation')}>
-                        Liberar
-                      </button>
-                    </>
-                  )}
-                  {moduleId === 'licenses' && permissions.includes('activate') && (
-                    <button type="button" onClick={() => licenseAction(row.id, 'activate')}>
-                      Activar
-                    </button>
-                  )}
+	                  {moduleId === 'licenses' && permissions.includes('reserve') && row.status === 'available' && (
+	                    <>
+	                      <button type="button" onClick={() => licenseAction(row.id, 'reserve')}>
+	                        Reservar
+	                      </button>
+	                    </>
+	                  )}
+	                  {moduleId === 'licenses' && permissions.includes('reserve') && row.status === 'reserved' && (
+	                    <button type="button" onClick={() => licenseAction(row.id, 'release-reservation')}>
+	                      Liberar reserva
+	                    </button>
+	                  )}
+		                  {moduleId === 'licenses' && permissions.includes('activate') && ['available', 'reserved'].includes(row.status) && (
+		                    <button type="button" onClick={() => setActivationRow(row)}>
+		                      Activar ahora
+		                    </button>
+		                  )}
+		                  {moduleId === 'licenses' && canUpdate && ['available', 'reserved'].includes(row.status) && (
+		                    <button type="button" className="danger-button" onClick={() => licenseAction(row.id, 'mark-expired')}>
+		                      Marcar expirada
+		                    </button>
+		                  )}
                   {canUpdate && isInactiveRow(row) && (
                     <button type="button" onClick={() => reactivateRow(row)}>
                       Reactivar
                     </button>
                   )}
-                  {(canDelete || (moduleId === 'licenses' && permissions.includes('delete'))) && !isInactiveRow(row) && (
-                    <button type="button" className="danger-button" onClick={() => removeRow(row)}>
-                      {moduleId === 'batches' || moduleId === 'licenses' ? 'Cancelar' : 'Desactivar'}
-                    </button>
-                  )}
+	                  {moduleId !== 'licenses' && (canDelete || permissions.includes('delete')) && !isInactiveRow(row) && (
+	                    <button type="button" className="danger-button" onClick={() => removeRow(row)}>
+	                      {moduleId === 'batches' ? 'Cancelar' : 'Desactivar'}
+	                    </button>
+	                  )}
                 </div>
               )
               : null

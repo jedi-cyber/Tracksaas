@@ -234,6 +234,7 @@ function FieldControl({ field, value, optionConfig, options, relatedAction, disa
         {relatedAction && (
           <span className="field-help">Si no existe, créalo sin salir de este formulario.</span>
         )}
+        {field.help && <span className="field-help">{field.help}</span>}
       </div>
     )
   }
@@ -247,6 +248,8 @@ function FieldControl({ field, value, optionConfig, options, relatedAction, disa
         required={required}
         min={field.min}
         step={field.step}
+        pattern={field.pattern}
+        title={field.title}
         maxLength={field.maxLength}
         disabled={disabled}
         placeholder={field.requiredOnCreate && mode === 'edit' ? 'Dejar vacío para conservar' : ''}
@@ -257,6 +260,7 @@ function FieldControl({ field, value, optionConfig, options, relatedAction, disa
           onChange(nextValue)
         }}
       />
+      {field.help && <span className="field-help">{field.help}</span>}
     </label>
   )
 }

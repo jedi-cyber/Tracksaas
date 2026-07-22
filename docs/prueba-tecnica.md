@@ -161,18 +161,34 @@ Resumen:
 - `license_user`: operación de licencias, lotes, clientes, activaciones, reservas y expiración.
 - `viewer`: lectura operativa y dashboard.
 
-### Cifrado de Licencias
+### Identificadores de Licencia
 
-El código real de licencia:
+El sistema diferencia dos códigos:
 
-- Se recibe como `license_code`.
-- Se cifra antes de almacenarse en `license_code_encrypted`.
-- Se hashea en `license_code_hash` para evitar duplicados.
-- Se expone como `masked_code` en respuestas.
-- El identificador comercial se almacena en `commercial_identifier` y queda visible para operación.
+- `commercial_identifier`: ID comercial público. Identifica familia, producto, contrato, SKU o canal comercial como OEM o Retail/FPP. Es multiproveedor y puede adaptarse a Windows, Kaspersky, ESET u otros productos. Puede mostrarse en operación porque no activa el producto.
+- `license_code`: clave única de activación. Su formato depende del fabricante, no del canal OEM/Retail. Acepta formatos como ESET 20 caracteres en bloques de 4, Microsoft 25 caracteres en bloques de 5, Kaspersky 20 caracteres corridos y Adobe antiguo 24 números en bloques de 4. Es confidencial, activa un puesto/equipo y no debe compartirse.
+- `validity_start_mode`: define el tipo comercial de vigencia.
+- `purchase_date`: compra online/oficial. La vigencia corre desde compra/facturación aunque todavía no se haya instalado o activado en un equipo.
+- `first_activation`: física/distribuidor. La vigencia corre desde la primera activación y conserva el periodo completo hasta ese momento.
+- Para `purchase_date`, `start_date` representa la fecha de compra/facturación y `next_renewal_date` se calcula inmediatamente.
+- Para `first_activation`, `start_date` y `next_renewal_date` pueden quedar vacías hasta la activación.
+- `redeem_deadline_date` permite registrar el límite de canje antes de la primera activación.
+- No se crea un estado adicional para canje. Se usan los estados existentes:
+- `available` + `first_activation` + `start_date` vacía indica una licencia disponible para activar.
+- `available` + `purchase_date` + `start_date` definida indica una licencia disponible, pero con vigencia ya corriendo.
+- `expired` cubre vencimiento por `next_renewal_date` o por `redeem_deadline_date`.
+- La reserva y activación se bloquean si la licencia ya está vencida por renovación o por límite de canje.
+- Si una licencia física/distribuidor no tiene fecha cierta de baja y el proveedor rechaza la activación, soporte puede marcarla manualmente como `expired`.
+- El backend prioriza la activación de licencias antiguas o en riesgo:
+- Para licencias online/oficiales, ordena por `next_renewal_date`.
+- Para licencias físicas/distribuidor, ordena por `redeem_deadline_date`.
+- Si no hay fecha crítica, usa la fecha de compra del lote como respaldo.
+- La clave única se cifra en `license_code_encrypted`.
+- La clave única se hashea en `license_code_hash` para evitar duplicados.
+- La clave única se expone solo como `masked_code` en respuestas.
 - El estado de disponibilidad se consulta con `status`: disponible, reservada, activada, vencida o cancelada.
 
-El backend no devuelve el código real ni el código cifrado.
+El backend no devuelve la clave única real ni la clave cifrada.
 
 ### Regla de Cantidad de Lote
 
@@ -198,6 +214,8 @@ Reglas:
 
 - Solo se activan licencias `available` o `reserved`.
 - Una licencia solo puede activarse una vez.
+- Para `first_activation`, la fecha actual se guarda como `start_date` y la renovación se calcula desde esa fecha.
+- Para `purchase_date`, la activación no modifica `start_date` ni `next_renewal_date`; solo registra el equipo/cliente.
 - Se crea registro en `license_activations`.
 - Se actualiza `license_units.status = 'activated'`.
 - Se registra auditoría.
@@ -264,6 +282,9 @@ Alertas:
 - Verde: más de 30 días.
 - Amarillo: 30 días o menos.
 - Rojo: vencida.
+- Licencias con vigencia corriendo: alerta por `next_renewal_date`.
+- Licencias no activadas con límite de canje: alerta por `redeem_deadline_date`.
+- La API expone `alert_date` y `alert_reason` para distinguir renovación de límite de canje.
 
 ### Activaciones Consultables
 

@@ -3,6 +3,9 @@ import { formConfig, tableConfig } from '../config/modules'
 import EntityModal from './EntityModal'
 import Modal from './Modal'
 
+const COMMERCIAL_IDENTIFIER_PATTERN = '[A-Za-z0-9][A-Za-z0-9._/#: +()\\-]{1,179}'
+const LICENSE_CODE_PATTERN = '([A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}|[A-Za-z0-9]{5}-[A-Za-z0-9]{5}-[A-Za-z0-9]{5}-[A-Za-z0-9]{5}-[A-Za-z0-9]{5}|[A-Za-z0-9]{20}|[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{4})'
+
 function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }) {
   const today = new Date().toISOString().slice(0, 10)
   const [step, setStep] = useState(1)
@@ -17,7 +20,9 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
     name: '',
     commercial_identifier: '',
     license_code: '',
+    validity_start_mode: 'purchase_date',
     start_date: today,
+    redeem_deadline_date: '',
     cost: '',
     billing_cycle: 'annual',
     currency_code: 'PEN',
@@ -46,6 +51,16 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
   }, [api, setError])
 
   function updateField(field, value) {
+    if (field === 'validity_start_mode') {
+      setForm((current) => ({
+        ...current,
+        validity_start_mode: value,
+        start_date: value === 'first_activation' ? '' : current.start_date || today,
+        redeem_deadline_date: value === 'purchase_date' ? '' : current.redeem_deadline_date,
+      }))
+      return
+    }
+
     setForm((current) => ({ ...current, [field]: value }))
   }
 
@@ -60,13 +75,48 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
       )
     }
 
-    return form.start_date && form.cost && form.billing_cycle
+    return (form.validity_start_mode === 'first_activation' || form.start_date) && form.cost && form.billing_cycle
+  }
+
+  const selectedBatch = batches.find((batch) => String(batch.id) === String(form.batch_id))
+  const selectedUser = users.find((item) => String(item.id) === String(form.responsible_user_id))
+
+  function getRenewalDurationDays() {
+    return Number(selectedBatch?.variant_duration_days) || (form.billing_cycle === 'monthly' ? 30 : 365)
+  }
+
+  function calculateRenewalDate() {
+    if (form.validity_start_mode === 'first_activation' || !form.start_date) return ''
+    const date = new Date(`${form.start_date}T00:00:00.000Z`)
+    date.setUTCDate(date.getUTCDate() + getRenewalDurationDays())
+    return date.toISOString().slice(0, 10)
+  }
+
+  function formatDate(value) {
+    if (!value) return '-'
+    const [year, month, day] = value.split('-')
+    return `${day}/${month}/${year}`
   }
 
   function nextStep() {
     if (!validateStep()) {
       setError('Completa los campos obligatorios antes de continuar.')
       return
+    }
+
+    if (step === 1) {
+      const commercialRegex = new RegExp(`^${COMMERCIAL_IDENTIFIER_PATTERN}$`, 'i')
+      const licenseCodeRegex = new RegExp(`^${LICENSE_CODE_PATTERN}$`, 'i')
+
+      if (!commercialRegex.test(form.commercial_identifier.trim())) {
+        setError('El ID comercial público debe tener entre 2 y 180 caracteres. Puede ser OEM, Retail/FPP, contrato, SKU o ID público del proveedor.')
+        return
+      }
+
+      if (!licenseCodeRegex.test(form.license_code.trim())) {
+        setError('La clave única debe usar un formato válido del proveedor: ESET 5x4, Microsoft 5x5, Kaspersky 20 caracteres o Adobe 6x4 numérico.')
+        return
+      }
     }
 
     setError('')
@@ -84,13 +134,17 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
     setError('')
 
     try {
+      const isFirstActivation = form.validity_start_mode === 'first_activation'
       await api.request('/licenses', {
         method: 'POST',
         body: JSON.stringify({
           ...form,
+          start_date: isFirstActivation ? '' : form.start_date,
+          redeem_deadline_date: isFirstActivation ? form.redeem_deadline_date : '',
           batch_id: Number(form.batch_id),
           responsible_user_id: Number(form.responsible_user_id),
           cost: Number(form.cost),
+          next_renewal_date: isFirstActivation ? '' : calculateRenewalDate(),
         }),
       })
       await onCreated()
@@ -101,14 +155,13 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
     }
   }
 
-  const selectedBatch = batches.find((batch) => String(batch.id) === String(form.batch_id))
-  const selectedUser = users.find((item) => String(item.id) === String(form.responsible_user_id))
+  const renewalDate = calculateRenewalDate()
 
   return (
-    <Modal title="Nueva Activación" eyebrow="Wizard" onClose={onClose} size="large">
+    <Modal title="Registrar licencia" eyebrow="Wizard" onClose={onClose} size="large">
       <form className="wizard-panel" onSubmit={submit}>
         <p className="guide-text">
-          La licencia se crea al final del flujo. La próxima renovación se calcula automáticamente desde la fecha de inicio y la duración de la variante.
+          Este formulario registra la licencia en inventario. La activación real se hace después desde la acción Activar ahora.
         </p>
         <div className="wizard-steps" aria-label="Pasos del registro de licencia">
           {['Datos', 'Vigencia', 'Revisión'].map((label, index) => (
@@ -147,10 +200,10 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
                   <span className="field-help">Si no existe, créalo sin salir de este formulario.</span>
                 </div>
 
-                <label>
-                  Responsable
-                  <select value={form.responsible_user_id} onChange={(event) => updateField('responsible_user_id', event.target.value)} required>
-                    <option value="">Seleccionar responsable</option>
+	                <label>
+	                  Custodio inicial
+	                  <select value={form.responsible_user_id} onChange={(event) => updateField('responsible_user_id', event.target.value)} required>
+	                    <option value="">Seleccionar custodio</option>
                     {users.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name} · {item.email}
@@ -165,30 +218,84 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
                 </label>
 
                 <label>
-                  Identificador comercial
+                  ID comercial público
                   <input
                     value={form.commercial_identifier}
-                    onChange={(event) => updateField('commercial_identifier', event.target.value)}
+                    onChange={(event) => updateField('commercial_identifier', event.target.value.toUpperCase())}
+                    placeholder="OEM-WIN11-PRO-001, FPP-KAV-2026 o contrato/SKU"
+                    pattern={COMMERCIAL_IDENTIFIER_PATTERN}
+                    title="Puede ser un ID OEM, Retail/FPP, contrato, SKU o identificador público del proveedor."
                     required
                   />
+                  <span className="field-help">Identifica familia, producto, contrato, SKU o canal comercial. Es visible y no activa el software.</span>
                 </label>
 
                 <label>
-                  Código único real
-                  <input value={form.license_code} onChange={(event) => updateField('license_code', event.target.value)} required />
+                  Clave única de activación
+                  <input
+                    value={form.license_code}
+                    onChange={(event) => updateField('license_code', event.target.value.toUpperCase())}
+                    placeholder="ESET 5x4, Microsoft 5x5, Kaspersky 20, Adobe 6x4"
+                    pattern={LICENSE_CODE_PATTERN}
+                    title="Formatos válidos: ESET 5 bloques de 4, Microsoft 5 bloques de 5, Kaspersky 20 caracteres corridos, Adobe 6 bloques numéricos de 4."
+                    required
+                  />
+                  <span className="field-help">Depende del fabricante. Es confidencial, se cifra en base de datos y solo se muestra enmascarada.</span>
                 </label>
               </div>
             )}
 
             {step === 2 && (
               <div className="wizard-grid">
-                <label>
-                  Fecha de inicio
-                  <input type="date" value={form.start_date} onChange={(event) => updateField('start_date', event.target.value)} required />
-                </label>
+	                <label>
+		                  Modo de inicio de vigencia
+	                  <select value={form.validity_start_mode} onChange={(event) => updateField('validity_start_mode', event.target.value)} required>
+	                    <option value="purchase_date">Compra online/oficial: vence desde la compra</option>
+	                    <option value="first_activation">Física/distribuidor: vence desde la primera activación</option>
+	                  </select>
+	                  <span className="field-help">
+	                    {form.validity_start_mode === 'purchase_date'
+	                      ? 'Ejemplo: tienda oficial. Si se activa después de 3 meses, queda menos tiempo de uso.'
+	                      : 'Ejemplo: caja física o distribuidor. El periodo completo empieza al activarla.'}
+	                  </span>
+		                </label>
 
-                <label>
-                  Costo
+	                <label>
+		                  Fecha de compra/facturación
+	                  <input
+	                    type="date"
+	                    value={form.start_date}
+	                    onChange={(event) => updateField('start_date', event.target.value)}
+	                    required={form.validity_start_mode === 'purchase_date'}
+	                    disabled={form.validity_start_mode === 'first_activation'}
+	                  />
+	                  {form.validity_start_mode === 'first_activation' && (
+		                    <span className="field-help">No aplica. Se calculará automáticamente al activar la licencia.</span>
+	                  )}
+	                </label>
+
+		                {form.validity_start_mode === 'purchase_date' && (
+		                  <label>
+		                    Fecha de vencimiento
+		                    <input
+		                      value={formatDate(renewalDate)}
+		                      readOnly
+		                      aria-readonly="true"
+		                    />
+		                    <span className="field-help">Automática: fecha de compra/facturación + {getRenewalDurationDays()} días.</span>
+		                  </label>
+		                )}
+
+		                {form.validity_start_mode === 'first_activation' && (
+		                  <label>
+		                    Fecha límite de canje
+		                    <input type="date" value={form.redeem_deadline_date} onChange={(event) => updateField('redeem_deadline_date', event.target.value)} />
+		                    <span className="field-help">Opcional. Controla hasta cuándo puede activarse por primera vez.</span>
+		                  </label>
+		                )}
+	
+	                <label>
+	                  Costo
                   <input type="number" min="0" step="0.01" value={form.cost} onChange={(event) => updateField('cost', event.target.value)} required />
                 </label>
 
@@ -200,10 +307,10 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
                   </select>
                 </label>
 
-                <label>
-                  Moneda
-                  <input value={form.currency_code} onChange={(event) => updateField('currency_code', event.target.value.toUpperCase())} maxLength="3" required />
-                </label>
+	                <label>
+	                  Moneda
+	                  <input value={form.currency_code} onChange={(event) => updateField('currency_code', event.target.value.toUpperCase())} maxLength="3" required />
+	                </label>
 
                 <label className="full-span">
                   Notas
@@ -215,11 +322,17 @@ function LicenseWizard({ api, setError, onClose, onCreated, initialValues = {} }
             {step === 3 && (
               <div className="review-list">
                 <p><strong>Lote:</strong> {selectedBatch?.batch_number || '-'}</p>
-                <p><strong>Responsable:</strong> {selectedUser?.name || '-'}</p>
+                <p><strong>Custodio inicial:</strong> {selectedUser?.name || '-'}</p>
                 <p><strong>Licencia:</strong> {form.name || '-'}</p>
-                <p><strong>Identificador comercial:</strong> {form.commercial_identifier || '-'}</p>
-                <p><strong>Inicio:</strong> {form.start_date || '-'}</p>
-                <p><strong>Renovación:</strong> automática según la variante</p>
+                <p><strong>ID comercial público:</strong> {form.commercial_identifier || '-'}</p>
+                <p><strong>Clave única:</strong> se guardará cifrada y enmascarada</p>
+                <p><strong>Inicio:</strong> {form.validity_start_mode === 'first_activation' ? 'Se asignará al activar' : form.start_date || '-'}</p>
+                <p><strong>Modo de vigencia:</strong> {form.validity_start_mode === 'first_activation' ? 'Física/distribuidor: desde primera activación' : 'Online/oficial: desde compra'}</p>
+                {form.validity_start_mode === 'purchase_date' ? (
+                  <p><strong>Fecha de vencimiento:</strong> {formatDate(renewalDate)} automática</p>
+                ) : (
+                  <p><strong>Fecha límite de canje:</strong> {formatDate(form.redeem_deadline_date)}</p>
+                )}
                 <p><strong>Costo:</strong> {form.currency_code} {form.cost || '0'}</p>
                 <p><strong>Ciclo:</strong> {form.billing_cycle === 'monthly' ? 'Mensual' : 'Anual'}</p>
               </div>

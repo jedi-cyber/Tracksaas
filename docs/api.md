@@ -302,10 +302,12 @@ Body de creación:
   "batch_id": 1,
   "responsible_user_id": 1,
   "name": "Licencia ESET 001",
-  "commercial_identifier": "ESET-ENDPOINT-001",
-  "license_code": "AAAA-BBBB-CCCC-DDDD",
+  "commercial_identifier": "OEM-WIN11-PRO-001",
+  "license_code": "12345-67890-ABCDE-FGHIJ-KLMNO",
+  "validity_start_mode": "purchase_date",
   "status": "available",
   "start_date": "2026-07-21",
+  "redeem_deadline_date": null,
   "cost": 10,
   "billing_cycle": "annual",
   "currency_code": "PEN",
@@ -315,12 +317,31 @@ Body de creación:
 
 Reglas:
 
-- `license_code` se cifra antes de almacenarse.
-- `commercial_identifier` es visible y sirve para que el usuario operativo identifique comercialmente la licencia.
+- `responsible_user_id` representa el custodio inicial de la licencia en inventario, no el usuario que la activa.
+- `commercial_identifier` es el ID comercial público. Puede representar OEM, Retail/FPP, contrato, SKU o identificador público del proveedor. Es visible y no activa el software.
+- `license_code` es la clave única de activación. Su formato depende del fabricante, no del canal OEM/Retail. Se aceptan formatos como ESET `ABCD-EFGH-IJKL-MNOP-QRST`, Microsoft `12345-67890-ABCDE-FGHIJ-KLMNO`, Kaspersky `ABCDE12345FGHIJ67890` y Adobe antiguo `1111-2222-3333-4444-5555-6666`. Se cifra antes de almacenarse y no debe compartirse.
+- `validity_start_mode` define el tipo comercial de vigencia.
+- `purchase_date`: compra online/oficial. La vigencia corre desde compra/facturación; si se activa después, queda menos tiempo de uso.
+- `first_activation`: física/distribuidor. La vigencia corre desde la primera activación; el periodo completo empieza al activarla.
+- Para `purchase_date`, `start_date` es la fecha de compra/facturación y es obligatoria al crear la licencia. `next_renewal_date` se calcula desde esa fecha.
+- Para `first_activation`, `start_date` y `next_renewal_date` pueden quedar nulos al crear la licencia; ambos se calculan automáticamente al activar.
+- `redeem_deadline_date` es opcional y controla hasta cuándo puede canjearse una licencia antes de la primera activación.
 - Las respuestas devuelven `masked_code`, no el código real.
 - La disponibilidad se determina por `status`: `available`, `reserved`, `activated`, `expired` o `cancelled`.
+- No se agrega un estado de canje. Las reglas se aplican sobre los estados existentes:
+- `available` + `first_activation` + `start_date = null`: disponible para activar.
+- `available` + `purchase_date` + `start_date` definida: disponible, pero su vigencia ya está corriendo.
+- `expired`: vencida por `next_renewal_date` o por `redeem_deadline_date`.
+- El backend bloquea reserva/activación si la licencia ya venció por renovación o por límite de canje, aunque todavía no se haya ejecutado el endpoint de expiración.
+- Para licencias físicas/distribuidor sin fecha cierta de baja por proveedor, soporte puede marcar manualmente la licencia como `expired` si el proveedor rechaza la activación.
+- El listado de licencias prioriza activación por fecha crítica más antigua:
+- Online/oficial: usa `next_renewal_date`, porque la vigencia ya corre desde compra/facturación.
+- Físicas/distribuidor: usa `redeem_deadline_date`, porque el riesgo es perder la ventana de canje.
+- Si no existe fecha crítica, usa la fecha de compra del lote como desempate para que salgan primero las licencias más antiguas.
+- Las respuestas incluyen `activation_priority_date` y `activation_priority_reason`.
 - `next_renewal_date` lo calcula el backend con `start_date + product_variants.duration_days`.
 - Si la variante no tiene `duration_days`, se usa 30 días para ciclo mensual y 365 para ciclo anual.
+- Solo se pueden crear, reservar o activar licencias de lotes `confirmed`.
 - No se puede crear más licencias que `license_batches.quantity`.
 - `DELETE /licenses/:id` marca `status = "cancelled"` y mantiene `active = true`.
 - El estado `activated` no debe asignarse con `PUT`; se usa el endpoint dedicado.
@@ -346,6 +367,9 @@ Reglas:
 
 - Solo se activan licencias `available` o `reserved`.
 - Una licencia solo puede activarse una vez.
+- Si `validity_start_mode = first_activation`, el backend toma la fecha actual como `start_date` y calcula `next_renewal_date` desde esa fecha.
+- Si `validity_start_mode = purchase_date`, el backend no modifica `start_date` ni `next_renewal_date`; solo registra la activación del equipo/cliente.
+- El usuario activador se toma del JWT y se guarda en `license_activations.activated_by`; no se envía desde el formulario.
 - La operación crea registro en `license_activations`.
 - Registra auditoría.
 
@@ -439,6 +463,13 @@ GET /dashboard/alerts?color=yellow&page=1&limit=20
 GET /dashboard/alerts?status=activated
 GET /dashboard/alerts?responsibleUserId=1
 ```
+
+Reglas de alerta:
+
+- Licencias con vigencia corriendo alertan por `next_renewal_date`.
+- Licencias no activadas con límite de canje alertan por `redeem_deadline_date`.
+- La respuesta incluye `alert_date` como fecha crítica calculada.
+- La respuesta incluye `alert_reason`: `vigencia_en_curso` o `limite_de_canje`.
 
 Renovaciones:
 

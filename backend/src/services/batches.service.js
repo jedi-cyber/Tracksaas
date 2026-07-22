@@ -51,6 +51,8 @@ async function listBatches(query) {
       SELECT
         lb.*,
         pv.name AS variant_name,
+        pv.billing_cycle AS variant_billing_cycle,
+        pv.duration_days AS variant_duration_days,
         p.name AS product_name,
         pr.name AS provider_name,
         COUNT(*) OVER() AS total_count
@@ -78,6 +80,8 @@ async function getBatch(id) {
       SELECT
         lb.*,
         pv.name AS variant_name,
+        pv.billing_cycle AS variant_billing_cycle,
+        pv.duration_days AS variant_duration_days,
         p.name AS product_name,
         pr.name AS provider_name
       FROM license_batches lb

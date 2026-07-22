@@ -19,6 +19,8 @@ function getActivationSelect() {
       lu.masked_code,
       lu.status AS license_status,
       lu.next_renewal_date,
+      lu.expiration_date,
+      (lu.next_renewal_date - CURRENT_DATE) AS days_remaining,
       c.name AS customer_name,
       u.name AS activated_by_name,
       u.email AS activated_by_email,

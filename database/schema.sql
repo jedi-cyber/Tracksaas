@@ -190,8 +190,10 @@ CREATE TABLE IF NOT EXISTS license_units (
     license_code_hash CHAR(64) NOT NULL UNIQUE,
     masked_code VARCHAR(120) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'available',
-    start_date DATE NOT NULL,
-    next_renewal_date DATE NOT NULL,
+    validity_start_mode VARCHAR(30) NOT NULL DEFAULT 'purchase_date',
+    start_date DATE,
+    next_renewal_date DATE,
+    redeem_deadline_date DATE,
     activation_date TIMESTAMPTZ,
     expiration_date DATE,
     cost NUMERIC(14,2) NOT NULL,
@@ -212,10 +214,21 @@ CREATE TABLE IF NOT EXISTS license_units (
     CONSTRAINT fk_license_units_write_uid FOREIGN KEY (write_uid)
         REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT chk_license_status CHECK (status IN ('available','reserved','activated','expired','cancelled')),
+    CONSTRAINT chk_license_validity_start_mode CHECK (validity_start_mode IN ('purchase_date','first_activation')),
     CONSTRAINT chk_license_cost CHECK (cost >= 0),
     CONSTRAINT chk_license_billing_cycle CHECK (billing_cycle IN ('monthly','annual')),
     CONSTRAINT chk_license_currency CHECK (currency_code ~ '^[A-Z]{3}$'),
-    CONSTRAINT chk_license_dates CHECK (next_renewal_date >= start_date),
+    CONSTRAINT chk_license_dates CHECK (
+        (start_date IS NULL AND next_renewal_date IS NULL)
+        OR (start_date IS NOT NULL AND next_renewal_date IS NOT NULL AND next_renewal_date >= start_date)
+    ),
+    CONSTRAINT chk_license_validity_dates CHECK (
+        (validity_start_mode = 'purchase_date' AND start_date IS NOT NULL AND next_renewal_date IS NOT NULL)
+        OR validity_start_mode = 'first_activation'
+    ),
+    CONSTRAINT chk_license_redeem_deadline CHECK (
+        redeem_deadline_date IS NULL OR start_date IS NULL OR redeem_deadline_date >= start_date
+    ),
     CONSTRAINT chk_activation_date_by_status CHECK (
         (status = 'activated' AND activation_date IS NOT NULL)
         OR status <> 'activated'
@@ -228,12 +241,57 @@ SET commercial_identifier = name
 WHERE commercial_identifier IS NULL;
 ALTER TABLE license_units
     ALTER COLUMN commercial_identifier SET NOT NULL;
+ALTER TABLE license_units
+    ADD COLUMN IF NOT EXISTS validity_start_mode VARCHAR(30) NOT NULL DEFAULT 'purchase_date';
+ALTER TABLE license_units
+    DROP CONSTRAINT IF EXISTS chk_license_validity_start_mode;
+ALTER TABLE license_units
+    ADD CONSTRAINT chk_license_validity_start_mode
+        CHECK (validity_start_mode IN ('purchase_date','first_activation'));
+ALTER TABLE license_units
+    ADD COLUMN IF NOT EXISTS redeem_deadline_date DATE;
+ALTER TABLE license_units
+    ALTER COLUMN start_date DROP NOT NULL;
+ALTER TABLE license_units
+    ALTER COLUMN next_renewal_date DROP NOT NULL;
+ALTER TABLE license_units
+    DROP CONSTRAINT IF EXISTS chk_license_dates;
+ALTER TABLE license_units
+    ADD CONSTRAINT chk_license_dates CHECK (
+        (start_date IS NULL AND next_renewal_date IS NULL)
+        OR (start_date IS NOT NULL AND next_renewal_date IS NOT NULL AND next_renewal_date >= start_date)
+    );
+ALTER TABLE license_units
+    DROP CONSTRAINT IF EXISTS chk_license_validity_dates;
+ALTER TABLE license_units
+    ADD CONSTRAINT chk_license_validity_dates CHECK (
+        (validity_start_mode = 'purchase_date' AND start_date IS NOT NULL AND next_renewal_date IS NOT NULL)
+        OR validity_start_mode = 'first_activation'
+    );
+ALTER TABLE license_units
+    DROP CONSTRAINT IF EXISTS chk_license_redeem_deadline;
+ALTER TABLE license_units
+    ADD CONSTRAINT chk_license_redeem_deadline CHECK (
+        redeem_deadline_date IS NULL OR start_date IS NULL OR redeem_deadline_date >= start_date
+    );
+CREATE OR REPLACE FUNCTION set_license_commercial_identifier()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.commercial_identifier IS NULL OR BTRIM(NEW.commercial_identifier) = '' THEN
+        NEW.commercial_identifier := NEW.name;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 CREATE INDEX IF NOT EXISTS idx_license_units_batch_id ON license_units(batch_id);
 CREATE INDEX IF NOT EXISTS idx_license_units_commercial_identifier ON license_units(commercial_identifier);
 CREATE INDEX IF NOT EXISTS idx_license_units_responsible ON license_units(responsible_user_id);
 CREATE INDEX IF NOT EXISTS idx_license_units_status ON license_units(status);
 CREATE INDEX IF NOT EXISTS idx_license_units_next_renewal ON license_units(next_renewal_date);
 CREATE INDEX IF NOT EXISTS idx_license_units_active_status ON license_units(active,status);
+DROP TRIGGER IF EXISTS trg_license_units_commercial_identifier ON license_units;
+CREATE TRIGGER trg_license_units_commercial_identifier BEFORE INSERT OR UPDATE ON license_units
+FOR EACH ROW EXECUTE FUNCTION set_license_commercial_identifier();
 DROP TRIGGER IF EXISTS trg_license_units_write_date ON license_units;
 CREATE TRIGGER trg_license_units_write_date BEFORE UPDATE ON license_units
 FOR EACH ROW EXECUTE FUNCTION set_write_date();
@@ -277,27 +335,76 @@ CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_logs(entity_name,entity_id)
 CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(created_at);
 
-CREATE OR REPLACE VIEW vw_license_alerts AS
+DROP VIEW IF EXISTS vw_license_alerts;
+CREATE VIEW vw_license_alerts AS
 SELECT
     lu.id,
     lu.name,
     lu.commercial_identifier,
     lu.status,
+    lu.validity_start_mode,
     lu.start_date,
     lu.next_renewal_date,
+    lu.redeem_deadline_date,
+    CASE
+        WHEN lu.next_renewal_date IS NOT NULL THEN lu.next_renewal_date
+        WHEN lu.validity_start_mode = 'first_activation'
+            AND lu.activation_date IS NULL
+            AND lu.redeem_deadline_date IS NOT NULL THEN lu.redeem_deadline_date
+        ELSE NULL
+    END AS alert_date,
+    CASE
+        WHEN lu.next_renewal_date IS NOT NULL THEN 'vigencia_en_curso'
+        WHEN lu.validity_start_mode = 'first_activation'
+            AND lu.activation_date IS NULL
+            AND lu.redeem_deadline_date IS NOT NULL THEN 'limite_de_canje'
+        ELSE 'sin_fecha_critica'
+    END AS alert_reason,
     lu.cost,
     lu.billing_cycle,
     lu.currency_code,
     lu.responsible_user_id,
-    (lu.next_renewal_date - CURRENT_DATE) AS days_remaining,
+    (
+        CASE
+            WHEN lu.next_renewal_date IS NOT NULL THEN lu.next_renewal_date
+            WHEN lu.validity_start_mode = 'first_activation'
+                AND lu.activation_date IS NULL
+                AND lu.redeem_deadline_date IS NOT NULL THEN lu.redeem_deadline_date
+            ELSE NULL
+        END - CURRENT_DATE
+    ) AS days_remaining,
     CASE
-        WHEN lu.next_renewal_date < CURRENT_DATE THEN 'red'
-        WHEN lu.next_renewal_date <= CURRENT_DATE + 30 THEN 'yellow'
+        WHEN (
+            CASE
+                WHEN lu.next_renewal_date IS NOT NULL THEN lu.next_renewal_date
+                WHEN lu.validity_start_mode = 'first_activation'
+                    AND lu.activation_date IS NULL
+                    AND lu.redeem_deadline_date IS NOT NULL THEN lu.redeem_deadline_date
+                ELSE NULL
+            END
+        ) < CURRENT_DATE THEN 'red'
+        WHEN (
+            CASE
+                WHEN lu.next_renewal_date IS NOT NULL THEN lu.next_renewal_date
+                WHEN lu.validity_start_mode = 'first_activation'
+                    AND lu.activation_date IS NULL
+                    AND lu.redeem_deadline_date IS NOT NULL THEN lu.redeem_deadline_date
+                ELSE NULL
+            END
+        ) <= CURRENT_DATE + 30 THEN 'yellow'
         ELSE 'green'
     END AS alert_color
 FROM license_units lu
 WHERE lu.active = TRUE
-  AND lu.status <> 'cancelled';
+  AND lu.status <> 'cancelled'
+  AND (
+    lu.next_renewal_date IS NOT NULL
+    OR (
+      lu.validity_start_mode = 'first_activation'
+      AND lu.activation_date IS NULL
+      AND lu.redeem_deadline_date IS NOT NULL
+    )
+  );
 
 CREATE OR REPLACE VIEW vw_financial_dashboard AS
 SELECT

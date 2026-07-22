@@ -22,6 +22,17 @@ let server;
 let baseUrl;
 let adminToken;
 let adminUserId;
+let licenseCodeCounter = 0;
+
+function makeCommercialIdentifier() {
+  return `OEM-WIN11-PRO-${String(Date.now()).slice(-6)}`;
+}
+
+function makeLicenseCode() {
+  licenseCodeCounter += 1;
+  const raw = `${Date.now()}${String(licenseCodeCounter).padStart(7, "0")}`.slice(-20);
+  return raw.match(/.{1,4}/g).join("-");
+}
 
 function jsonHeaders(token = adminToken) {
   return {
@@ -153,9 +164,9 @@ async function createLicenseFixture(suffix, overrides = {}) {
         batch_number,
         purchase_date,
         quantity,
-        unit_cost,
-        currency_code,
-        status,
+      unit_cost,
+      currency_code,
+      status,
         create_uid,
         write_uid
       )
@@ -176,15 +187,81 @@ async function createLicenseFixture(suffix, overrides = {}) {
       batch_id: batch.rows[0].id,
       responsible_user_id: adminUserId,
       name: `${TEST_PREFIX}-LICENSE-${suffix}`,
-      commercial_identifier: `${TEST_PREFIX}-COMMERCIAL-${suffix}`,
-      license_code: `${TEST_PREFIX}-CODE-${suffix}`,
-      start_date: overrides.startDate || "2026-07-21",
+      commercial_identifier: makeCommercialIdentifier(),
+      license_code: overrides.licenseCode || makeLicenseCode(),
+      validity_start_mode: overrides.validityStartMode || "purchase_date",
+      start_date: Object.prototype.hasOwnProperty.call(overrides, "startDate")
+        ? overrides.startDate
+        : "2026-07-21",
+      redeem_deadline_date: overrides.redeemDeadlineDate,
       cost: overrides.cost || 10,
       billing_cycle: overrides.billingCycle || "annual",
     },
     adminUserId,
     "127.0.0.1"
   );
+}
+
+async function createBatchFixture(suffix, status = "confirmed") {
+  const providerId = await getProviderId();
+  const product = await pool.query(
+    `
+      INSERT INTO products (name, description, create_uid, write_uid)
+      VALUES ($1, $2, $3, $3)
+      RETURNING id
+    `,
+    [`${TEST_PREFIX}-PRODUCT-${suffix}`, "Producto de prueba", adminUserId]
+  );
+  const variant = await pool.query(
+    `
+      INSERT INTO product_variants (
+        product_id,
+        name,
+        default_code,
+        billing_cycle,
+        duration_days,
+        default_cost,
+        currency_code,
+        create_uid,
+        write_uid
+      )
+      VALUES ($1, $2, $3, 'annual', 365, 10, 'PEN', $4, $4)
+      RETURNING id
+    `,
+    [
+      product.rows[0].id,
+      `${TEST_PREFIX}-VARIANT-${suffix}`,
+      `${TEST_PREFIX}-VAR-${suffix}`,
+      adminUserId,
+    ]
+  );
+  const batch = await pool.query(
+    `
+      INSERT INTO license_batches (
+        variant_id,
+        provider_id,
+        batch_number,
+        purchase_date,
+        quantity,
+        unit_cost,
+        currency_code,
+        status,
+        create_uid,
+        write_uid
+      )
+      VALUES ($1, $2, $3, CURRENT_DATE, 5, 10, 'PEN', $4, $5, $5)
+      RETURNING id
+    `,
+    [
+      variant.rows[0].id,
+      providerId,
+      `${TEST_PREFIX}-BATCH-${suffix}`,
+      status,
+      adminUserId,
+    ]
+  );
+
+  return batch.rows[0];
 }
 
 describe("TrackSaaS backend", () => {
@@ -284,8 +361,32 @@ describe("TrackSaaS backend", () => {
     assert.equal(duplicate.response.status, 409);
   });
 
+  test("no permite crear licencias en lotes sin confirmar", async () => {
+    const batch = await createBatchFixture("DRAFT-BLOCK", "draft");
+
+    await assert.rejects(
+      () =>
+        licensesService.createLicense(
+          {
+            batch_id: batch.id,
+            responsible_user_id: adminUserId,
+            name: `${TEST_PREFIX}-LICENSE-DRAFT-BLOCK`,
+            commercial_identifier: makeCommercialIdentifier(),
+            license_code: makeLicenseCode(),
+            validity_start_mode: "purchase_date",
+            start_date: "2026-07-21",
+            cost: 10,
+            billing_cycle: "annual",
+          },
+          adminUserId,
+          "127.0.0.1"
+        ),
+      /confirmado/
+    );
+  });
+
   test("cifrado, hash y enmascarado de licencia", () => {
-    const code = "ABCD-1234-EFGH-5678";
+    const code = "ABCD-1234-EFGH-5678-IJKL";
     const encrypted = encryptLicenseCode(code);
     const hash = hashLicenseCode(code);
     const masked = maskLicenseCode(code);
@@ -293,8 +394,176 @@ describe("TrackSaaS backend", () => {
     assert.notEqual(encrypted, code);
     assert.equal(hash.length, 64);
     assert.equal(masked.startsWith("ABCD"), true);
-    assert.equal(masked.endsWith("5678"), true);
+    assert.equal(masked.endsWith("IJKL"), true);
     assert.equal(masked.includes("*"), true);
+  });
+
+  test("acepta claves de activación multiproveedor", async () => {
+    const examples = [
+      "ABCD-EFGH-IJKL-MNOP-QRST",
+      "12345-67890-ABCDE-FGHIJ-KLMNO",
+      "ABCDE12345FGHIJ67890",
+      "1111-2222-3333-4444-5555-6666",
+    ];
+
+    for (const [index, licenseCode] of examples.entries()) {
+      const license = await createLicenseFixture(`MULTI-${index}`, { licenseCode });
+      assert.equal(license.status, "available");
+      assert.ok(license.masked_code.includes("*"));
+    }
+  });
+
+  test("registra modo de inicio de vigencia", async () => {
+    const license = await createLicenseFixture("VALIDITY-MODE", {
+      validityStartMode: "first_activation",
+    });
+
+    assert.equal(license.validity_start_mode, "first_activation");
+  });
+
+  test("calcula vigencia al activar licencia first_activation", async () => {
+    const license = await createLicenseFixture("FIRST-ACTIVATION-DATES", {
+      validityStartMode: "first_activation",
+      startDate: null,
+      redeemDeadlineDate: "2027-12-31",
+    });
+
+    assert.equal(license.start_date, null);
+    assert.equal(license.next_renewal_date, null);
+    assert.equal(new Date(license.redeem_deadline_date).toISOString().slice(0, 10), "2027-12-31");
+
+    const activated = await request(`/api/licenses/${license.id}/activate`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        device_reference: `${TEST_PREFIX}-FIRST-ACTIVATION-DEVICE`,
+      }),
+    });
+
+    assert.equal(activated.response.status, 200);
+    assert.ok(activated.body.data.license.start_date);
+    assert.ok(activated.body.data.license.next_renewal_date);
+  });
+
+  test("mantiene fechas originales al activar licencia purchase_date", async () => {
+    const license = await createLicenseFixture("PURCHASE-ACTIVATION-DATES", {
+      validityStartMode: "purchase_date",
+      startDate: "2026-07-21",
+    });
+    const originalStartDate = new Date(license.start_date).toISOString().slice(0, 10);
+    const originalRenewalDate = new Date(license.next_renewal_date).toISOString().slice(0, 10);
+
+    const activated = await request(`/api/licenses/${license.id}/activate`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        device_reference: `${TEST_PREFIX}-PURCHASE-ACTIVATION-DEVICE`,
+      }),
+    });
+
+    assert.equal(activated.response.status, 200);
+    assert.equal(new Date(activated.body.data.license.start_date).toISOString().slice(0, 10), originalStartDate);
+    assert.equal(new Date(activated.body.data.license.next_renewal_date).toISOString().slice(0, 10), originalRenewalDate);
+  });
+
+  test("aplica reglas operativas de canje sin nuevo estado", async () => {
+    const pendingActivation = await createLicenseFixture("AVAILABLE-FIRST-ACTIVATION", {
+      validityStartMode: "first_activation",
+      startDate: null,
+      redeemDeadlineDate: "2027-12-31",
+    });
+
+    assert.equal(pendingActivation.status, "available");
+    assert.equal(pendingActivation.start_date, null);
+
+    const runningPurchase = await createLicenseFixture("AVAILABLE-PURCHASE-RUNNING", {
+      validityStartMode: "purchase_date",
+      startDate: "2026-07-21",
+    });
+
+    assert.equal(runningPurchase.status, "available");
+    assert.ok(runningPurchase.start_date);
+    assert.ok(runningPurchase.next_renewal_date);
+
+    const expiredRedeem = await createLicenseFixture("EXPIRED-REDEEM", {
+      validityStartMode: "first_activation",
+      startDate: null,
+      redeemDeadlineDate: "2025-01-01",
+    });
+
+    const expiredActivation = await request(`/api/licenses/${expiredRedeem.id}/activate`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({}),
+    });
+    assert.equal(expiredActivation.response.status, 409);
+
+    const expiredPurchase = await createLicenseFixture("EXPIRED-PURCHASE", {
+      validityStartMode: "purchase_date",
+      startDate: "2020-01-01",
+    });
+
+    const expiredPurchaseActivation = await request(`/api/licenses/${expiredPurchase.id}/activate`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({}),
+    });
+    assert.equal(expiredPurchaseActivation.response.status, 409);
+
+    const result = await licensesService.expireOverdueLicenses(adminUserId, "127.0.0.1");
+    const expiredIds = result.licenses.map((license) => license.id);
+    assert.ok(expiredIds.includes(expiredRedeem.id));
+    assert.ok(expiredIds.includes(expiredPurchase.id));
+  });
+
+  test("prioriza activación por fecha crítica más antigua", async () => {
+    const later = await createLicenseFixture("PRIORITY-LATER", {
+      validityStartMode: "first_activation",
+      startDate: null,
+      redeemDeadlineDate: "2028-12-31",
+    });
+    const sooner = await createLicenseFixture("PRIORITY-SOONER", {
+      validityStartMode: "first_activation",
+      startDate: null,
+      redeemDeadlineDate: "2027-01-15",
+    });
+
+    const response = await request("/api/licenses?status=available&limit=100", {
+      headers: jsonHeaders(),
+    });
+
+    assert.equal(response.response.status, 200);
+    const ids = response.body.data
+      .filter((license) => [sooner.id, later.id].includes(license.id))
+      .map((license) => license.id);
+    assert.ok(ids.indexOf(sooner.id) < ids.indexOf(later.id));
+    assert.equal(response.body.data.find((license) => license.id === sooner.id).activation_priority_reason, "limite_de_canje");
+  });
+
+  test("dashboard alerta por renovación o límite de canje", async () => {
+    const redeemAlert = await createLicenseFixture("ALERT-REDEEM", {
+      validityStartMode: "first_activation",
+      startDate: null,
+      redeemDeadlineDate: "2026-08-01",
+    });
+    const renewalAlert = await createLicenseFixture("ALERT-RENEWAL", {
+      validityStartMode: "purchase_date",
+      startDate: "2026-07-01",
+      billingCycle: "monthly",
+    });
+
+    const alerts = await request("/api/dashboard/alerts?limit=100", {
+      headers: jsonHeaders(),
+    });
+
+    assert.equal(alerts.response.status, 200);
+    const redeemRow = alerts.body.data.find((license) => license.id === redeemAlert.id);
+    const renewalRow = alerts.body.data.find((license) => license.id === renewalAlert.id);
+
+    assert.equal(redeemRow.alert_reason, "limite_de_canje");
+    assert.equal(new Date(redeemRow.alert_date).toISOString().slice(0, 10), "2026-08-01");
+    assert.equal(renewalRow.alert_reason, "vigencia_en_curso");
+    assert.ok(renewalRow.alert_date);
   });
 
   test("dashboard protegido devuelve resumen", async () => {

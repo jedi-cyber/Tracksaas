@@ -1,6 +1,6 @@
 import { formatValue, statusClass } from '../utils/formatters'
 
-function DataTable({ rows, columns, actions }) {
+function DataTable({ rows, columns, actions, moduleId }) {
   if (!rows?.length) {
     return <div className="empty-state">No hay registros para mostrar.</div>
   }
@@ -24,7 +24,9 @@ function DataTable({ rows, columns, actions }) {
             >
               {columns.map(([key]) => (
                 <td key={key}>
-                  {key === 'status' || key === 'alert_color' ? (
+                  {moduleId === 'roles' && key === 'active' ? (
+                    <span className={`state-dot ${row[key] ? 'state-dot-active' : 'state-dot-inactive'}`} title={row[key] ? 'Activado' : 'Desactivado'} aria-label={row[key] ? 'Activado' : 'Desactivado'} />
+                  ) : key === 'status' || key === 'alert_color' ? (
                     <span className={statusClass(row[key])}>{formatValue(row[key])}</span>
                   ) : (
                     formatValue(row[key])

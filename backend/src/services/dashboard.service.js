@@ -99,7 +99,7 @@ async function getAlerts(query) {
           WHEN 'yellow' THEN 2
           ELSE 3
         END,
-        a.next_renewal_date ASC,
+        a.alert_date ASC,
         a.id ASC
       LIMIT $4 OFFSET $5
     `,
@@ -120,9 +120,9 @@ async function getUpcomingRenewals(query) {
         u.name AS responsible_user_name
       FROM vw_license_alerts a
       JOIN users u ON u.id = a.responsible_user_id
-      WHERE a.next_renewal_date >= CURRENT_DATE
-        AND a.next_renewal_date <= CURRENT_DATE + ($1::INT * INTERVAL '1 day')
-      ORDER BY a.next_renewal_date ASC, a.id ASC
+      WHERE a.alert_date >= CURRENT_DATE
+        AND a.alert_date <= CURRENT_DATE + ($1::INT * INTERVAL '1 day')
+      ORDER BY a.alert_date ASC, a.id ASC
       LIMIT $2
     `,
     [days, limit]

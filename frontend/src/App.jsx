@@ -12,6 +12,7 @@ function App() {
   const [token, setToken] = useState(() => localStorage.getItem('tracksaas_token'))
   const [user, setUser] = useState(null)
   const [activeModule, setActiveModule] = useState('dashboard')
+  const [openGroups, setOpenGroups] = useState({ catalog: false })
   const [notifications, setNotifications] = useState([])
 
   const api = useMemo(() => {
@@ -81,6 +82,7 @@ function App() {
     setToken(null)
     setUser(null)
     setActiveModule('dashboard')
+    setOpenGroups({})
   }
 
   if (!token) {
@@ -99,33 +101,69 @@ function App() {
         </div>
 
         <nav className="nav-list" aria-label="Módulos">
-          {modules.map((module) => (
-            <button
-              key={module.id}
-              type="button"
-              className={activeModule === module.id ? 'active' : ''}
-              onClick={() => {
-                setActiveModule(module.id)
-              }}
-            >
-              {module.label}
-            </button>
-          ))}
-        </nav>
-      </aside>
+          {modules.map((module) => {
+            const isGroup = Boolean(module.children?.length)
+            const isOpen = openGroups[module.id]
+            const hasActiveChild = module.children?.some((child) => child.id === activeModule)
 
-      <main className="main-panel">
-        <header className="topbar">
-          <div>
-            <span className="eyebrow">Sesión activa</span>
-            <h2>{user?.name || 'Usuario'}</h2>
-            <p>{user?.role?.name || 'rol'} · {user?.email}</p>
-          </div>
+            if (isGroup) {
+              return (
+                <div key={module.id} className="nav-group">
+                  <button
+                    type="button"
+                    className={hasActiveChild ? 'active' : ''}
+                    aria-expanded={Boolean(isOpen)}
+                    onClick={() => {
+                      setOpenGroups((current) => ({ ...current, [module.id]: !current[module.id] }))
+                    }}
+                  >
+                    <span>{module.label}</span>
+                    <span className="nav-chevron">{isOpen ? '▾' : '▸'}</span>
+                  </button>
+                  {isOpen && (
+                    <div className="nav-sublist">
+                      {module.children.map((child) => (
+                        <button
+                          key={child.id}
+                          type="button"
+                          className={activeModule === child.id ? 'active' : ''}
+                          onClick={() => setActiveModule(child.id)}
+                        >
+                          {child.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+
+            return (
+              <button
+                key={module.id}
+                type="button"
+                className={activeModule === module.id ? 'active' : ''}
+                onClick={() => {
+                  setActiveModule(module.id)
+                }}
+              >
+                {module.label}
+              </button>
+            )
+          })}
+        </nav>
+
+        <div className="sidebar-session">
+          <span>Sesión activa</span>
+          <strong>{user?.name || 'Usuario'}</strong>
+          <p>{user?.role?.name || 'rol'} · {user?.email}</p>
           <button type="button" className="secondary-button" onClick={logout}>
             Cerrar sesión
           </button>
-        </header>
+        </div>
+      </aside>
 
+      <main className="main-panel">
         <NotificationCenter notifications={notifications} onDismiss={dismissNotification} />
 
         {activeModule === 'dashboard' ? (
