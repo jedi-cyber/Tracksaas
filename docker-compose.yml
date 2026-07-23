@@ -4,17 +4,17 @@ services:
     container_name: tracksaas-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: tracksaas_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5432:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d tracksaas_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -26,38 +26,44 @@ services:
     container_name: tracksaas-backend
     restart: unless-stopped
     environment:
-      NODE_ENV: development
-      PORT: 3000
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${BACKEND_PORT}
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: tracksaas_db
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      JWT_SECRET: change_this_development_secret
-      JWT_EXPIRES_IN: 8h
-      LICENSE_ENCRYPTION_KEY: change_this_license_encryption_key
-      CORS_ORIGIN: http://localhost
-      JSON_BODY_LIMIT: 100kb
-      LOGIN_RATE_LIMIT_WINDOW_MS: 900000
-      LOGIN_RATE_LIMIT_MAX: 5
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      LICENSE_ENCRYPTION_KEY: ${LICENSE_ENCRYPTION_KEY}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      JSON_BODY_LIMIT: ${JSON_BODY_LIMIT}
+      LOGIN_RATE_LIMIT_WINDOW_MS: ${LOGIN_RATE_LIMIT_WINDOW_MS}
+      LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX}
     expose:
       - "3000"
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: /api
+        VITE_API_URL: ${VITE_API_URL}
     container_name: tracksaas-frontend
     restart: unless-stopped
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost/api/health || exit 1"]
       interval: 10s

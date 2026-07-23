@@ -193,12 +193,6 @@ Entrar a PostgreSQL:
 docker compose exec postgres psql -U postgres -d tracksaas_db
 ```
 
-Ejecutar tests backend dentro del contenedor:
-
-```bash
-docker compose exec backend npm test
-```
-
 Reconstruir solo backend:
 
 ```bash

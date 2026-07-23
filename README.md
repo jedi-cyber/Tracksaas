@@ -106,6 +106,12 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 Desde la raíz del repositorio:
 
 ```bash
+cp .env.example .env
+```
+
+Edita `.env` y reemplaza los valores de ejemplo (`DB_PASSWORD`, `JWT_SECRET`, `LICENSE_ENCRYPTION_KEY`) por valores propios antes de un despliegue real. `docker-compose.yml` no contiene credenciales escritas directamente: todas se inyectan desde este archivo, que está excluido del control de versiones (`.gitignore`).
+
+```bash
 docker compose up --build -d
 docker compose ps
 ```
@@ -317,12 +323,7 @@ npm install
 npm test
 ```
 
-Docker:
-
-```bash
-docker compose up --build -d
-docker compose exec backend npm test
-```
+> Los tests se ejecutan localmente (fuera de Docker). La imagen de producción del backend (`backend/Dockerfile`) usa un build multi-stage que copia solo `src/` y las dependencias de producción — deliberadamente no incluye la carpeta `test/` ni `devDependencies`, para mantener la imagen final mínima y sin herramientas de desarrollo.
 
 Frontend:
 
