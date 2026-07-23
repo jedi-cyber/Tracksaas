@@ -272,7 +272,7 @@ Los cálculos excluyen licencias canceladas donde corresponde y usan la moneda a
 | Amarillo | Fecha crítica dentro de 30 días |
 | Rojo | Fecha crítica vencida o licencia `expired` |
 
-La fecha crítica es `next_renewal_date` si la vigencia ya corre; para licencias físicas aún no activadas se usa `redeem_deadline_date`. El motivo se devuelve como `vigencia_en_curso`, `limite_de_canje`, `licencia_vencida` o `sin_fecha_critica`.
+La fecha crítica es `next_renewal_date` (**vencimiento de uso**) si la vigencia ya corre; para licencias físicas aún no activadas se usa `redeem_deadline_date` (**límite de activación/canje**). El motivo se devuelve como `vigencia_en_curso`, `limite_de_canje`, `licencia_vencida` o `sin_fecha_critica`.
 
 ## Diagrama entidad-relación
 
@@ -306,22 +306,6 @@ erDiagram
   LICENSE_ACTIVATIONS { bigint id PK bigint license_unit_id FK bigint customer_id FK }
   AUDIT_LOGS { bigint id PK string entity_name bigint entity_id string action }
 ```
-
-## Capturas del sistema
-
-El repositorio actual no contiene capturas funcionales versionadas; `frontend/src/assets/hero.png` es una ilustración y no representa una pantalla de la aplicación. Para cumplir la entrega visual, agrega capturas en `docs/screenshots/` con estos nombres recomendados:
-
-```text
-docs/screenshots/
-├── login.png
-├── dashboard.png
-├── licencias.png
-├── activacion.png
-├── auditoria.png
-└── notificaciones.png
-```
-
-Luego inclúyelas aquí con Markdown. La aplicación está disponible en `http://localhost:5173` después de levantar Docker.
 
 ## Pruebas
 

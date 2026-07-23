@@ -127,7 +127,7 @@ export const tableConfig = {
       ['device_reference', 'Dispositivo'],
       ['activated_by_name', 'Activó'],
       ['activation_date', 'Activación'],
-      ['next_renewal_date', 'Vencimiento'],
+      ['next_renewal_date', 'Vencimiento de uso'],
       ['days_remaining', 'Días restantes'],
     ],
 	  },
@@ -255,7 +255,7 @@ export const formConfig = {
 	      },
 	      {
 	        name: 'redeem_deadline_date',
-	        label: 'Fecha límite de canje',
+	        label: 'Fecha límite de activación/canje',
 	        type: 'date',
 	        disabledOnEditWhen: { status: 'activated' },
 	        disabledOnEditForStatuses: ['expired', 'cancelled'],

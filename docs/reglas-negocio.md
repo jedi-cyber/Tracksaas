@@ -41,7 +41,7 @@ Si la variante no define duración, se usan 30 días para mensual y 365 para anu
 
 Con `validity_start_mode = first_activation`, la licencia puede crearse sin `start_date` ni renovación. La activación asigna la fecha actual y calcula la renovación.
 
-`redeem_deadline_date` controla la ventana de canje, pero no cambia automáticamente el estado a `expired`.
+`redeem_deadline_date` (**fecha límite de activación/canje**) controla la ventana de canje antes de la primera activación, pero no cambia automáticamente el estado a `expired`.
 
 ## Reservas y activaciones
 
@@ -54,7 +54,7 @@ Con `validity_start_mode = first_activation`, la licencia puede crearse sin `sta
 
 ## Expiración
 
-`POST /licenses/expire-overdue` marca `expired` las licencias activas con `next_renewal_date < CURRENT_DATE`. Aplica a `available`, `reserved` y `activated` y registra auditoría.
+`POST /licenses/expire-overdue` marca `expired` las licencias con `next_renewal_date < CURRENT_DATE` (**vencimiento de uso** superado). Aplica a `available`, `reserved` y `activated` y registra auditoría.
 
 ## Auditoría
 
@@ -66,4 +66,4 @@ Las operaciones sensibles registran entidad, ID, acción, usuario, fecha, IP y c
 - `yellow`: 30 días o menos.
 - `red`: fecha vencida o licencia `expired`.
 
-La fecha crítica prioriza renovación para vigencia en curso y límite de canje para licencias físicas aún no activadas.
+La fecha crítica prioriza el **vencimiento de uso** (`next_renewal_date`) para licencias con vigencia en curso, y el **límite de activación/canje** (`redeem_deadline_date`) para licencias físicas aún no activadas.
