@@ -53,8 +53,8 @@ function licenseAlertsQuery() {
       (alert_date - CURRENT_DATE) AS days_remaining,
       CASE
         WHEN status = 'expired' THEN 'red'
-        WHEN alert_date < CURRENT_DATE THEN 'red'
-        WHEN alert_date <= CURRENT_DATE + 30 THEN 'yellow'
+        WHEN alert_date <= CURRENT_DATE THEN 'red'
+        WHEN alert_date < CURRENT_DATE + 30 THEN 'yellow'
         ELSE 'green'
       END AS alert_color
     FROM alert_base
@@ -75,11 +75,11 @@ async function getFinancialDashboard() {
         COALESCE(SUM(CASE
           WHEN billing_cycle = 'monthly' THEN cost
           WHEN billing_cycle = 'annual' THEN cost / 12
-          ELSE 0 END) FILTER (WHERE active = TRUE AND status <> 'cancelled'), 0)::NUMERIC(14,2) AS monthly_equivalent_cost,
+          ELSE 0 END) FILTER (WHERE active = TRUE AND status IN ('available', 'reserved', 'activated')), 0)::NUMERIC(14,2) AS monthly_equivalent_cost,
         COALESCE(SUM(CASE
           WHEN billing_cycle = 'monthly' THEN cost * 12
           WHEN billing_cycle = 'annual' THEN cost
-          ELSE 0 END) FILTER (WHERE active = TRUE AND status <> 'cancelled'), 0)::NUMERIC(14,2) AS annual_cost_projection
+          ELSE 0 END) FILTER (WHERE active = TRUE AND status IN ('available', 'reserved', 'activated')), 0)::NUMERIC(14,2) AS annual_cost_projection
       FROM license_units
     `
   );

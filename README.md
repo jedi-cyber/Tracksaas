@@ -323,11 +323,7 @@ npm install
 npm test
 ```
 
-Docker:
-
-```bash
-docker compose up --build -d
-```
+> Los tests se ejecutan localmente (fuera de Docker). La imagen de producción del backend (`backend/Dockerfile`) usa un build multi-stage que copia solo `src/` y las dependencias de producción — deliberadamente no incluye la carpeta `test/` ni `devDependencies`, para mantener la imagen final mínima y sin herramientas de desarrollo.
 
 Frontend:
 
