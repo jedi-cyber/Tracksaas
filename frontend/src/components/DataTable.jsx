@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { formatValue, statusClass } from '../utils/formatters'
 import { EmptyState } from './StateMessage'
 
-function DataTable({ rows, columns, actions, moduleId }) {
+function DataTable({ rows, columns, actions }) {
   const [openMenuId, setOpenMenuId] = useState(null)
   const [menuPosition, setMenuPosition] = useState(null)
   const menuContentRef = useRef(null)
@@ -45,7 +45,7 @@ function DataTable({ rows, columns, actions, moduleId }) {
                   data-label={label}
                   className={`table-cell-${key}${key === 'action' ? ` action-${String(row[key] || 'default').toLowerCase()}` : ''}`}
                 >
-                  {moduleId === 'roles' && key === 'active' ? (
+                  {key === 'active' ? (
                     <span className={`state-dot ${row[key] ? 'state-dot-active' : 'state-dot-inactive'}`} title={row[key] ? 'Activado' : 'Desactivado'} aria-label={row[key] ? 'Activado' : 'Desactivado'} />
                   ) : key === 'status' || key === 'alert_color' ? (
                     <span className={statusClass(row[key])}>{formatValue(row[key])}</span>
