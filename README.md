@@ -35,7 +35,7 @@ Centralizar el registro y control operativo de licencias: conocer qué se compr�
 | Backend | Node.js, Express 5, CommonJS |
 | Base de datos | PostgreSQL 16 en Docker |
 | Seguridad | JWT, bcrypt/pgcrypto, Helmet, CORS, rate limit de login |
-| Infraestructura | Docker Compose |
+| Infraestructura | Docker Compose, Nginx 1.27 |
 | Pruebas | Node.js built-in test runner, `node:test` |
 
 ## Arquitectura
@@ -46,7 +46,7 @@ El despliegue Docker usa tres servicios:
 Navegador
 	|
 	v
-frontend:5173  (React + Vite; proxy /api)
+frontend:80    (Nginx; sirve bundle Vite + proxy /api)
 	|
 	v
 backend:3000   (Express REST; red interna Docker)
@@ -63,7 +63,7 @@ Para Docker:
 
 - Docker Desktop con Docker Compose v2.
 - Git.
-- Puertos libres `5173` y `5432`.
+- Puerto libre `80` (frontend Nginx) y `5432` (PostgreSQL opcional para acceso directo).
 - Al menos 2 GB de memoria disponible para los contenedores.
 
 Para instalación local opcional:
@@ -113,7 +113,7 @@ docker compose ps
 Abrir:
 
 ```text
-http://localhost:5173
+http://localhost
 ```
 
 Comprobar salud:
@@ -351,7 +351,6 @@ Más detalle en [docs/pruebas.md](docs/pruebas.md).
 
 - No hay migraciones versionadas; `schema.sql` se aplica al crear un volumen PostgreSQL nuevo.
 - Los secretos incluidos en Compose son de desarrollo y deben sustituirse en producción.
-- El frontend usa Vite en modo desarrollo dentro del contenedor, no un servidor estático de producción.
 - No hay suite E2E ni capturas funcionales versionadas actualmente.
 - `npm run lint` conserva diagnósticos técnicos preexistentes que no bloquean `npm run build`.
 - No se incluye gestión de recuperación de contraseña, MFA ni integración con proveedores de activación externos.

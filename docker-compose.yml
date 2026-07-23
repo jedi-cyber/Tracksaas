@@ -36,7 +36,7 @@ services:
       JWT_SECRET: change_this_development_secret
       JWT_EXPIRES_IN: 8h
       LICENSE_ENCRYPTION_KEY: change_this_license_encryption_key
-      CORS_ORIGIN: http://localhost:5173
+      CORS_ORIGIN: http://localhost
       JSON_BODY_LIMIT: 100kb
       LOGIN_RATE_LIMIT_WINDOW_MS: 900000
       LOGIN_RATE_LIMIT_MAX: 5
@@ -50,15 +50,19 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
     container_name: tracksaas-frontend
     restart: unless-stopped
-    environment:
-      VITE_API_URL: /api
-      VITE_API_PROXY_TARGET: http://backend:3000
     ports:
-      - "5173:5173"
+      - "80:80"
     depends_on:
       - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
